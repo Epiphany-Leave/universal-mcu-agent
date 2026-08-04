@@ -57,6 +57,12 @@ Agent adapter 只负责把统一入口接入宿主 Agent，不再各自维护 MC
 
 Claude 项目安装会创建项目根 `CLAUDE.md`；Codex 使用 `AGENTS.md`；OpenCode 使用 `.opencode/instructions/mcu-agent.md`；Cursor 使用 `.cursorrules`。这些文件都由同一份 `adapters/common/runtime-entry.md` 生成。
 
+入口规则是强制派发协议：Claude Code 处理任何 MCU 请求前必须先执行 `plan --state-root .`，读取 `next_tasks` 后才能进入 workflow 或修改代码。若现有项目的 `CLAUDE.md` 是旧版本，请重新安装并覆盖入口：
+
+```powershell
+.\install.ps1 -Agent claude-code -Project "D:\work\pet-robot" -Force
+```
+
 清理旧版本 Claude 全局入口：
 
 ```powershell
