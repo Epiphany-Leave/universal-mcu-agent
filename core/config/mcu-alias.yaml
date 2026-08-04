@@ -1,0 +1,130 @@
+# MCU 型号别名映射
+# 将各种格式的 MCU 字符串标准化为统一格式
+
+esp32:
+  esp32:
+    family: esp32
+    chip: ESP32
+    arch: xtensa
+  esp32s2:
+    family: esp32
+    chip: ESP32-S2
+    arch: xtensa
+  esp32s3:
+    family: esp32
+    chip: ESP32-S3
+    arch: xtensa
+  esp32s31:
+    family: esp32
+    chip: ESP32-S31
+    arch: xtensa
+  esp32c2:
+    family: esp32
+    chip: ESP32-C2
+    arch: riscv
+  esp32c3:
+    family: esp32
+    chip: ESP32-C3
+    arch: riscv
+  esp32c5:
+    family: esp32
+    chip: ESP32-C5
+    arch: riscv
+  esp32c6:
+    family: esp32
+    chip: ESP32-C6
+    arch: riscv
+  esp32h2:
+    family: esp32
+    chip: ESP32-H2
+    arch: riscv
+
+stm32:
+  stm32f103:
+    family: stm32
+    chip: STM32F103
+    arch: arm
+  stm32f407:
+    family: stm32
+    chip: STM32F407
+    arch: arm
+  stm32f411:
+    family: stm32
+    chip: STM32F411
+    arch: arm
+  stm32g431:
+    family: stm32
+    chip: STM32G431
+    arch: arm
+  stm32h743:
+    family: stm32
+    chip: STM32H743
+    arch: arm
+  stm32l476:
+    family: stm32
+    chip: STM32L476
+    arch: arm
+  stm32u575:
+    family: stm32
+    chip: STM32U575
+    arch: arm
+  stm32wbu5:
+    family: stm32
+    chip: STM32WBU5
+    arch: arm
+
+ch592:
+  ch592:
+    family: ch592
+    chip: CH592
+    arch: riscv
+  ch591:
+    family: ch592
+    chip: CH591
+    arch: riscv
+  ch32v307:
+    family: ch592
+    chip: CH32V307
+    arch: riscv
+  ch32v203:
+    family: ch592
+    chip: CH32V203
+    arch: riscv
+
+ti-c2000:
+  f280049c:
+    family: ti-c2000
+    chip: TMS320F280049C
+    arch: c2000
+  f280039c:
+    family: ti-c2000
+    chip: TMS320F280039C
+    arch: c2000
+  f28379d:
+    family: ti-c2000
+    chip: TMS320F28379D
+    arch: c2000
+
+gd32:
+  gd32f103:
+    family: stm32
+    chip: GD32F103
+    arch: arm
+  gd32f303:
+    family: stm32
+    chip: GD32F303
+    arch: arm
+  gd32f450:
+    family: stm32
+    chip: GD32F450
+    arch: arm
+
+py32:
+  py32f003:
+    family: stm32
+    chip: PY32F003
+    arch: arm
+  py32f030:
+    family: stm32
+    chip: PY32F030
+    arch: arm

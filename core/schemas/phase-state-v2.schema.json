@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/phase-state-v2.schema.json",
+  "title": "MCU Agent Phase State v2",
+  "type": "object",
+  "required": ["schema_version", "phase_id", "revision", "mode", "status", "result", "entry_criteria", "completion_criteria", "work_package_ids", "artifacts", "review_budget", "reopen"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "phase_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "mode": {"enum": ["production", "prototype", "exploration"]},
+    "status": {"enum": ["PLANNED", "ACTIVE", "WAITING_EXTERNAL", "COMPLETED", "CANCELLED"]},
+    "result": {"enum": ["PASS", "PASS_WITH_DEBT", "BLOCKED", "FAILED"]},
+    "entry_criteria": {"type": "array", "items": {"type": "string"}},
+    "completion_criteria": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "work_package_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "artifacts": {"type": "object"},
+    "review_budget": {
+      "type": "object",
+      "required": ["max_rounds", "exhausted_action"],
+      "properties": {
+        "max_rounds": {"type": "integer", "minimum": 1},
+        "exhausted_action": {"const": "CLOSE_WITH_DEBT"}
+      },
+      "additionalProperties": false
+    },
+    "reopen": {"type": ["object", "null"]}
+  },
+  "additionalProperties": false
+}

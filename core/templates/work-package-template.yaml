@@ -1,0 +1,18 @@
+schema_version: "2.0"
+work_package_id: "<stable-work-package-id>"
+intent_id: "<intent-id>"
+type: IMPLEMENTATION
+target: "<target>"
+mode: production
+state: PROPOSED
+priority: user_request
+expansion: register_only
+tasks:
+  - id: "<task-id>"
+    title: "<task-title>"
+    state: READY
+    requirements: []
+    debt_ids: []
+    verification_tier: host
+    outputs: []
+debt_ids: []

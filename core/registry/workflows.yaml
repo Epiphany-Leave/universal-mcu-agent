@@ -1,0 +1,50 @@
+# Universal MCU Agent — Workflow Registry
+# 路径索引（版本信息在 workflow front matter 中维护）
+
+workflows:
+  orchestrator:
+    path: workflows/orchestrator.md
+    contract_version: "2.0"
+    role: runtime-entry
+
+  project-setup:
+    path: workflows/project-setup.md
+    contract_version: "2.0"
+    role: task-handler
+
+  schematic-analysis:
+    path: workflows/schematic.md
+    contract_version: "2.0"
+    role: task-handler
+
+  datasheet-extraction:
+    path: workflows/datasheet.md
+    contract_version: "2.0"
+    role: task-handler
+
+  requirements-analysis:
+    path: workflows/requirements.md
+    contract_version: "2.0"
+    role: task-handler
+
+  firmware-development:
+    path: workflows/firmware.md
+    contract_version: "2.0"
+    role: task-handler
+
+  build-debug:
+    path: workflows/build.md
+    contract_version: "2.0"
+    role: task-handler
+
+  code-qa:
+    path: workflows/code-qa.md
+    contract_version: "2.0"
+    role: task-handler
+
+  evidence-resolution:
+    path: workflows/evidence-resolution.md
+    contract_version: "2.0"
+    role: task-handler
+    terminal_statuses: [COMPLETED, WAITING_EXTERNAL, CANCELLED]
+    review_budget: {max_rounds: 2, exhausted_action: CLOSE_WITH_DEBT}

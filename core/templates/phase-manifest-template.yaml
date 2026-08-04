@@ -1,0 +1,17 @@
+schema_version: "2.0"
+phase_id: "<stable-phase-id>"
+revision: 1
+mode: production
+status: PLANNED
+result: BLOCKED
+entry_criteria: []
+completion_criteria:
+  - "selected scope classified and task impacts computed"
+work_package_ids: []
+artifacts:
+  consumed: []
+  produced: []
+review_budget:
+  max_rounds: 2
+  exhausted_action: CLOSE_WITH_DEBT
+reopen: null

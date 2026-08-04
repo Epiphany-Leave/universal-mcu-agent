@@ -1,0 +1,129 @@
+# Universal MCU Agent — Knowledge Registry
+# 知识索引（用于精确匹配加载）
+
+knowledge:
+  # ── Common ──────────────────────────────────────────
+  evidence-governance:
+    path: knowledge/common/evidence-governance.md
+    category: [engineering, architecture]
+    keywords: [证据, 债务, lifecycle, ADR, EAR, waiting]
+    platforms: []
+    related_workflows: [orchestrator, schematic-analysis, datasheet-extraction, firmware-development, evidence-resolution]
+
+  architecture:
+    path: knowledge/common/architecture.md
+    category: [architecture]
+    keywords: [分层, driver, bsp, app, timepiece]
+    platforms: []
+    related_workflows: [firmware]
+
+  coding-style:
+    path: knowledge/common/coding-style.md
+    category: [coding]
+    keywords: [命名, 注释, 头文件, 函数]
+    platforms: []
+    related_workflows: [firmware, code-qa]
+
+  code-rules:
+    path: knowledge/common/code-rules.md
+    category: [coding, engineering]
+    keywords: [代码生成, 模板, 规则]
+    platforms: []
+    related_workflows: [firmware]
+
+  debugging-methods:
+    path: knowledge/common/debugging-methods.md
+    category: [debugging]
+    keywords: [编译错误, 链接错误, 头文件, 重复定义]
+    platforms: []
+    related_workflows: [build]
+
+  common-gotchas:
+    path: knowledge/common/common-gotchas.md
+    category: [debugging, engineering]
+    keywords: [常见错误, 经验, 工程目录, HAL]
+    platforms: []
+    related_workflows: [firmware, build, project-setup]
+
+  engineering-rules:
+    path: knowledge/common/engineering-rules.md
+    category: [engineering]
+    keywords: [工程创建, CubeMX, ESP-IDF, MRS, CCS]
+    platforms: []
+    related_workflows: [project-setup, firmware]
+
+  timepiece-framework:
+    path: knowledge/common/timepiece-framework.md
+    category: [architecture, timer]
+    keywords: [时间片, 轮询, 任务调度, RTOS]
+    platforms: []
+    related_workflows: [firmware]
+
+  # ── STM32 ───────────────────────────────────────────
+  stm32-project:
+    path: knowledge/platform/stm32/stm32-project.md
+    category: [engineering]
+    keywords: [STM32, CubeMX, Keil, 工程创建]
+    platforms: [stm32]
+    related_workflows: [project-setup, firmware]
+
+  keil-errors:
+    path: knowledge/platform/stm32/keil-errors.md
+    category: [debugging]
+    keywords: [Keil, MDK, DFP, 启动文件]
+    platforms: [stm32]
+    related_workflows: [build]
+
+  stm32-gotchas:
+    path: knowledge/platform/stm32/stm32-gotchas.md
+    category: [debugging]
+    keywords: [STM32, 常见错误, HAL, CubeMX]
+    platforms: [stm32]
+    related_workflows: [firmware, build]
+
+  # ── ESP32 ───────────────────────────────────────────
+  esp-idf-project:
+    path: knowledge/platform/esp32/esp-idf-project.md
+    category: [engineering]
+    keywords: [ESP32, ESP-IDF, CMake, 工程创建]
+    platforms: [esp32]
+    related_workflows: [project-setup, firmware]
+
+  esp-idf-errors:
+    path: knowledge/platform/esp32/esp-idf-errors.md
+    category: [debugging]
+    keywords: [ESP-IDF, 编译错误, 组件, target]
+    platforms: [esp32]
+    related_workflows: [build]
+
+  esp32-gotchas:
+    path: knowledge/platform/esp32/esp32-gotchas.md
+    category: [debugging]
+    keywords: [ESP32, GPIO冲突, 中文路径, PPA]
+    platforms: [esp32]
+    related_workflows: [firmware, build]
+
+  # ── CH592 ───────────────────────────────────────────
+  mrs-project:
+    path: knowledge/platform/ch592/mrs-project.md
+    category: [engineering]
+    keywords: [CH592, MRS, WCH, 工程创建]
+    platforms: [ch592]
+    related_workflows: [project-setup, firmware]
+
+  mrs-errors:
+    path: knowledge/platform/ch592/mrs-errors.md
+    category: [debugging]
+    keywords: [MRS, .cproject, CONFIG.h, BLE]
+    platforms: [ch592]
+    related_workflows: [build]
+
+  ch592-gotchas:
+    path: knowledge/platform/ch592/ch592-gotchas.md
+    category: [debugging]
+    keywords: [CH592, 常见错误, WCH]
+    platforms: [ch592]
+    related_workflows: [firmware, build]
+
+  # ── Application ─────────────────────────────────────
+  # (待扩展)

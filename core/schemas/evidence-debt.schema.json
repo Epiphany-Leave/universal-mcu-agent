@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/evidence-debt.schema.json",
+  "title": "MCU Agent Evidence Debt Registry",
+  "type": "object",
+  "required": ["schema_version", "revision", "debts"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "revision": {"type": "integer", "minimum": 1},
+    "debts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "state", "statement", "evidence_required", "dependencies", "sources", "acceptance_record"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "state": {"enum": ["OPEN", "EVIDENCE_SUBMITTED", "UNDER_REVIEW", "WAITING_EXTERNAL", "CONFIRMED", "CONFLICT", "REJECTED", "WAIVED_PROTOTYPE_ONLY", "CLOSED"]},
+          "statement": {"type": "string", "minLength": 1},
+          "evidence_required": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "dependencies": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "sources": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "acceptance_record": {"type": ["string", "null"]},
+          "requested_inputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "owner": {"type": ["string", "null"]}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"state": {"const": "CONFIRMED"}}},
+            "then": {
+              "properties": {
+                "sources": {"minItems": 1},
+                "acceptance_record": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          {
+            "if": {"properties": {"state": {"const": "WAITING_EXTERNAL"}}},
+            "then": {"required": ["requested_inputs"], "properties": {"requested_inputs": {"minItems": 1}}}
+          }
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

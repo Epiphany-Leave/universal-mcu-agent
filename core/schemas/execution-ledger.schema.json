@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/execution-ledger.schema.json",
+  "title": "MCU Agent Execution Ledger v2",
+  "type": "object",
+  "required": ["schema_version", "reviews"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "reviews": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["rounds", "fingerprints", "conclusion"],
+        "properties": {
+          "rounds": {"type": "integer", "minimum": 0},
+          "fingerprints": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "conclusion": {"type": ["object", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

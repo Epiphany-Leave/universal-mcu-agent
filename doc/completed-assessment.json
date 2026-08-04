@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "phase_id": "hardware-enablement-assessment",
+  "revision": 1,
+  "mode": "production",
+  "status": "COMPLETED",
+  "result": "PASS_WITH_DEBT",
+  "entry_criteria": ["architecture baseline accepted", "hardware evidence inventory available"],
+  "exit_criteria": ["each selected driver assessed", "all unresolved facts registered as debt"],
+  "artifacts": {
+    "consumed": ["hardware-evidence", "requirements", "architecture-baseline"],
+    "produced": ["hardware-assessment-closure"],
+    "closure": "05_Production/Firmware/hardware-assessment-closure.md"
+  },
+  "work_items": [
+    {"id": "button_driver", "readiness": "BLOCKED_HARDWARE", "debt_ids": ["BTN-REC-01"]},
+    {"id": "lcd_driver", "readiness": "BLOCKED_HARDWARE", "debt_ids": ["LCD-ID-01"]},
+    {"id": "audio_driver", "readiness": "BLOCKED_HARDWARE", "debt_ids": ["AUD-CODEC-01"]}
+  ],
+  "requested_external_inputs": [],
+  "resume_criteria": [],
+  "successor_phase": "evidence-resolution",
+  "reopen": null
+}

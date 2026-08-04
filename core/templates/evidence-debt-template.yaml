@@ -1,0 +1,14 @@
+schema_version: "2.0"
+revision: 1
+debts:
+  - id: "<stable-debt-id>"
+    state: OPEN
+    statement: "<unknown fact or unresolved conflict>"
+    capability_id: "<affected-capability>"
+    fact_names: ["<fact-name>"]
+    evidence_required: ["<required-evidence-role>"]
+    blocked_task_ids: []
+    dependencies: []
+    sources: []
+    acceptance_record: null
+    owner: null

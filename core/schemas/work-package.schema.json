@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/work-package.schema.json",
+  "title": "MCU Agent Work Package v2",
+  "type": "object",
+  "required": ["schema_version", "work_package_id", "intent_id", "type", "target", "mode", "state", "priority", "expansion", "tasks", "debt_ids"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "work_package_id": {"type": "string", "minLength": 1},
+    "intent_id": {"type": "string", "minLength": 1},
+    "intent_request": {"type": "string", "minLength": 1},
+    "type": {"enum": ["UI_FEATURE", "SENSOR_DRIVER", "SCHEDULER_OPTIMIZATION", "HARDWARE_EVIDENCE_RESOLUTION", "PLATFORM_INTEGRATION", "VALIDATION", "IMPLEMENTATION"]},
+    "target": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["production", "prototype", "exploration"]},
+    "state": {"enum": ["PROPOSED", "READY", "BLOCKED", "IN_PROGRESS", "VALIDATING", "DONE", "CANCELLED"]},
+    "priority": {"enum": ["user_request", "dependency", "maintenance"]},
+    "expansion": {"enum": ["register_only", "dependency_only", "user_approved"]},
+    "tasks": {"type": "array", "items": {"$ref": "#/$defs/task"}, "minItems": 1},
+    "debt_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "summary": {"type": "object"}
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": ["id", "title", "state", "requirements", "debt_ids", "verification_tier", "outputs"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string", "minLength": 1},
+        "state": {"enum": ["READY", "BLOCKED_HARDWARE", "BLOCKED_REQUIREMENT", "BLOCKED_CONFIG", "IMPLEMENTING", "VALIDATING", "DONE", "FAILED", "SKIPPED"]},
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["capability", "facts", "gate", "on_missing"],
+            "properties": {
+              "capability": {"type": "string", "minLength": 1},
+              "facts": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+              "gate": {"enum": ["REQUIRED", "REQUIRED_FOR_TARGET_VALIDATION", "OPTIONAL"]},
+              "on_missing": {"enum": ["BLOCKED_HARDWARE", "BLOCKED_REQUIREMENT", "BLOCKED_CONFIG"]}
+            },
+            "additionalProperties": false
+          }
+        },
+        "debt_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "verification_tier": {"enum": ["analysis", "host", "build", "target"]},
+        "outputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "handler": {"type": "string", "minLength": 1},
+        "allowed_paths": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+        "input_roles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "input_scope": {"type": "string", "minLength": 1},
+        "execution": {"type": "object"},
+        "blockers": {"type": "array"},
+        "waiting": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

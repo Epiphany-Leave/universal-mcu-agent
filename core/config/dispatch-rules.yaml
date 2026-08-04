@@ -1,0 +1,10 @@
+# v0.6 runtime dispatch policy. Natural-language keywords are not lifecycle routing.
+schema_version: "2.0"
+entrypoint: runtime.intent_manager.IntentManager
+factory: runtime.work_package_factory.WorkPackageFactory
+gate: runtime.capability_gate.CapabilityGate
+scheduler_policy:
+  priority_order: [user_request, dependency, maintenance]
+  implementation_expansion: register_only
+  blocked_task_scope: local
+  workflow_role: task_handler

@@ -1,0 +1,36 @@
+# 工具依赖声明
+
+tools:
+  python:
+    version: ">=3.8"
+    required: true
+
+  pymupdf:
+    package: "PyMuPDF"
+    pip: "pip install PyMuPDF"
+    required: false
+    note: "PDF 文本提取，datasheet/schematic workflow 需要"
+
+  pyyaml:
+    package: "PyYAML"
+    pip: "pip install pyyaml"
+    required: false
+    note: "YAML 配置解析"
+
+ide:
+  keil:
+    name: "Keil MDK"
+    mcu: ["STM32", "GD32", "PY32"]
+
+  mrs:
+    name: "MounRiver Studio"
+    mcu: ["CH592", "CH591", "CH32"]
+
+  esp-idf:
+    name: "ESP-IDF"
+    mcu: ["ESP32", "ESP32-S2", "ESP32-S3", "ESP32-C3", "ESP32-S31"]
+    version: ">=5.0"
+
+  ccs:
+    name: "Code Composer Studio"
+    mcu: ["TMS320F"]

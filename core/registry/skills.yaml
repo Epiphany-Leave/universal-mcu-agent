@@ -1,0 +1,19 @@
+# Universal MCU Agent v0.6 capability registry
+schema_version: "2.0"
+entrypoint:
+  runtime: runtime/cli.py
+  command: plan
+
+handlers:
+  project-setup: workflows/project-setup.md
+  schematic-analysis: workflows/schematic.md
+  datasheet-extraction: workflows/datasheet.md
+  requirements-analysis: workflows/requirements.md
+  firmware-development: workflows/firmware.md
+  build-debug: workflows/build.md
+  code-qa: workflows/code-qa.md
+  evidence-resolution: workflows/evidence-resolution.md
+
+rules:
+  - "Handlers are selected from runtime Task type, never directly from keyword matching."
+  - "Adapters must not duplicate lifecycle or capability-gate policy."

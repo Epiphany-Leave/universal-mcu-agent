@@ -1,0 +1,51 @@
+# 文件分类规则
+# 扩展名 → 目标目录映射
+
+rules:
+  # 工程目录（优先级最高）
+  - pattern: "包含 .uvprojx/.ioc/CMakeLists.txt/Makefile"
+    action: move_dir
+    target: "software/<project-name>"
+    note: "整体移动，内部不动"
+
+  # 例程集合
+  - pattern: "父目录含 example/demo/例程，子目录各含 main.c"
+    action: move_dir
+    target: "references"
+
+  # 硬件文件
+  - extensions: [".SchDoc", ".sch", ".kicad_sch"]
+    action: move_file
+    target: "hardware/schematic"
+
+  - extensions: [".PcbDoc", ".kicad_pcb"]
+    action: move_file
+    target: "hardware/pcb"
+
+  - pattern: "文件名含 datasheet/reference manual/手册"
+    action: move_file
+    target: "hardware/datasheets"
+
+  - pattern: "文件名含 BOM/bom/物料"
+    action: move_file
+    target: "hardware/bom"
+
+  # 需求文档
+  - pattern: "文件名含 需求/requirement/QFD"
+    action: move_file
+    target: "project/requirements"
+
+  # 开发工具
+  - extensions: [".exe", ".msi"]
+    action: move_file
+    target: "tools/dev"
+
+  # 其他文档
+  - extensions: [".pdf", ".docx", ".xlsx"]
+    action: move_file
+    target: "references"
+
+  # 压缩包
+  - extensions: [".zip", ".rar", ".7z", ".tar.gz"]
+    action: move_file
+    target: "archive"

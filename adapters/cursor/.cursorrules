@@ -1,0 +1,7 @@
+# Universal MCU Agent v0.6 Runtime Entry
+
+Before handling any MCU request, call:
+
+`python .mcu-agent/runtime/cli.py plan "<user request>" --mode <mode>`
+
+Execute only the returned READY tasks. Prepare coding context with `runtime/cli.py prepare-task`, edit only its `allowed_roots`, then finalize with `runtime/cli.py finalize-task` after build/test verification. Workflows under `.mcu-agent/workflows/` are task handlers, not lifecycle controllers. Resolve all inputs through `.mcu-agent/artifact-manifest.yaml`; do not scan for similarly named files. A blocked task cannot stop unrelated READY tasks. Use the runtime transition engine for state changes and the ESP-IDF platform contract after builds.

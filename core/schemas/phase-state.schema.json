@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/phase-state.schema.json",
+  "title": "MCU Agent Phase State",
+  "type": "object",
+  "required": [
+    "schema_version", "phase_id", "revision", "mode", "status", "result",
+    "entry_criteria", "exit_criteria", "artifacts", "work_items",
+    "requested_external_inputs", "resume_criteria", "successor_phase", "reopen"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "phase_id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "mode": {"enum": ["production", "prototype", "exploration"]},
+    "status": {"enum": ["PLANNED", "ACTIVE", "WAITING_EXTERNAL", "COMPLETED", "CANCELLED"]},
+    "result": {"enum": ["PASS", "PASS_WITH_DEBT", "BLOCKED", "FAILED"]},
+    "entry_criteria": {"type": "array", "items": {"type": "string"}},
+    "exit_criteria": {"type": "array", "items": {"type": "string"}},
+    "artifacts": {
+      "type": "object",
+      "required": ["consumed", "produced"],
+      "properties": {
+        "consumed": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "produced": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "closure": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "work_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "readiness", "debt_ids"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "readiness": {"enum": ["READY", "BLOCKED_HARDWARE", "BLOCKED_CONFIG", "BLOCKED_ARCHITECTURE", "DISABLED"]},
+          "debt_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        },
+        "additionalProperties": false
+      }
+    },
+    "requested_external_inputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "resume_criteria": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "successor_phase": {"type": ["string", "null"]},
+    "reopen": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": ["reason", "authority", "previous_revision"],
+          "properties": {
+            "reason": {"type": "string", "minLength": 1},
+            "authority": {"type": "string", "minLength": 1},
+            "previous_revision": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "COMPLETED"}}},
+      "then": {"properties": {"artifacts": {"required": ["closure"]}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "WAITING_EXTERNAL"}}},
+      "then": {
+        "properties": {
+          "requested_external_inputs": {"minItems": 1},
+          "resume_criteria": {"minItems": 1}
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/intent-record.schema.json",
+  "title": "MCU Agent Intent Record v2",
+  "type": "object",
+  "required": ["schema_version", "intent_id", "type", "request", "scope", "priority", "expansion", "mode", "authority", "created_at"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "intent_id": {"type": "string", "minLength": 1},
+    "type": {"enum": ["implementation", "debug", "evidence", "review", "plan"]},
+    "request": {"type": "string", "minLength": 1},
+    "scope": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+    "priority": {"enum": ["user_request", "dependency", "maintenance"]},
+    "expansion": {"enum": ["register_only", "dependency_only", "user_approved"]},
+    "mode": {"enum": ["production", "prototype", "exploration"]},
+    "authority": {"type": "string", "minLength": 1},
+    "created_at": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

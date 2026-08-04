@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/evidence-debt-v2.schema.json",
+  "title": "MCU Agent Evidence Debt Registry v2",
+  "type": "object",
+  "required": ["schema_version", "revision", "debts"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "revision": {"type": "integer", "minimum": 1},
+    "debts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "state", "statement", "capability_id", "fact_names", "evidence_required", "blocked_task_ids", "dependencies", "sources", "acceptance_record", "owner"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "state": {"enum": ["OPEN", "EVIDENCE_SUBMITTED", "UNDER_REVIEW", "WAITING_EXTERNAL", "CONFIRMED", "CONFLICT", "REJECTED", "WAIVED_PROTOTYPE_ONLY", "CLOSED"]},
+          "statement": {"type": "string", "minLength": 1},
+          "capability_id": {"type": "string", "minLength": 1},
+          "fact_names": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+          "evidence_required": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+          "blocked_task_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "dependencies": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "sources": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "acceptance_record": {"type": ["string", "null"]},
+          "owner": {"type": ["string", "null"]},
+          "requested_inputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

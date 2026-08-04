@@ -1,0 +1,16 @@
+# Custom Skill/Workflow Registry
+# 用户自定义能力注册表
+# 放置位置: .mcu-agent/custom/registry/
+
+workflows:
+  # 示例:
+  # my-custom-workflow:
+  #   path: workflows/my-custom-workflow.md
+
+skills:
+  # 示例:
+  # my-custom-skill:
+  #   workflow: workflows/my-custom-workflow.md
+  #   triggers:
+  #     - 自定义触发词1
+  #     - 自定义触发词2

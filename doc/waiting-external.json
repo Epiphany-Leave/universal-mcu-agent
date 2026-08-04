@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "phase_id": "evidence-resolution",
+  "revision": 1,
+  "mode": "production",
+  "status": "WAITING_EXTERNAL",
+  "result": "BLOCKED",
+  "entry_criteria": ["selected evidence debt exists"],
+  "exit_criteria": ["selected debt confirmed or rejected with traceable review"],
+  "artifacts": {
+    "consumed": ["hardware-evidence", "evidence-debt-registry"],
+    "produced": []
+  },
+  "work_items": [
+    {"id": "lcd_driver", "readiness": "BLOCKED_HARDWARE", "debt_ids": ["LCD-ID-01"]}
+  ],
+  "requested_external_inputs": ["populated LCD module identity and matching official document"],
+  "resume_criteria": ["a requested artifact is supplied with a new identity, revision, or SHA-256"],
+  "successor_phase": null,
+  "reopen": null
+}

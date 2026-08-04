@@ -1,0 +1,12 @@
+schema_version: "2.0"
+platforms:
+  esp-idf:
+    adapter: runtime.platforms.esp_idf.EspIdfAdapter
+    project_layout: "software/<project-name>"
+    component_contract: true
+  stm32:
+    adapter: pending
+    component_contract: false
+  ch592:
+    adapter: pending
+    component_contract: false

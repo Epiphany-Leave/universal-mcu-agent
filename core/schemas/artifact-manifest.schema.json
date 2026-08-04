@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/artifact-manifest.schema.json",
+  "title": "MCU Agent Artifact Manifest",
+  "type": "object",
+  "required": ["schema_version", "revision", "artifacts"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "revision": {"type": "integer", "minimum": 1},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path", "type", "revision", "sha256", "producer", "dependencies", "supersedes", "evidence_class", "status"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "type": {"type": "string", "minLength": 1},
+          "revision": {"type": "integer", "minimum": 1},
+          "sha256": {"type": ["string", "null"], "pattern": "^[a-fA-F0-9]{64}$"},
+          "producer": {"type": "string", "minLength": 1},
+          "dependencies": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "supersedes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "evidence_class": {"enum": ["HARDWARE_FACT", "DEVICE_DOCUMENTATION", "OFFICIAL_BOARD_PROFILE", "OFFICIAL_BOARD_VALIDATION", "IMPLEMENTATION_REFERENCE", "GENERATED_CONFIG", "UNTRUSTED_OR_MODIFIED"]},
+          "status": {"enum": ["CURRENT", "STALE", "SUPERSEDED", "REJECTED"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

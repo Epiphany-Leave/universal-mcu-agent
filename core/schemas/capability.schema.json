@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/capability.schema.json",
+  "title": "MCU Agent Capability v2",
+  "type": "object",
+  "required": ["schema_version", "id", "state", "facts"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "id": {"type": "string", "minLength": 1},
+    "state": {"enum": ["AVAILABLE", "DEGRADED", "BLOCKED", "UNKNOWN"]},
+    "facts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["state", "value", "evidence_ids"],
+        "properties": {
+          "state": {"enum": ["CONFIRMED", "AVAILABLE", "UNKNOWN", "ASSUMED", "CONFLICT"]},
+          "value": {},
+          "evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "ear_id": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

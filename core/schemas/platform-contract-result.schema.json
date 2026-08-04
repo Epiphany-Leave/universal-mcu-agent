@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/platform-contract-result.schema.json",
+  "title": "MCU Agent Platform Contract Result v2",
+  "type": "object",
+  "required": ["platform", "scope", "target", "status", "build_succeeded", "components", "errors", "warnings"],
+  "properties": {
+    "platform": {"type": "string", "minLength": 1},
+    "scope": {"type": "string", "minLength": 1},
+    "target": {"type": ["string", "null"]},
+    "status": {"enum": ["PASS", "FAIL"]},
+    "build_succeeded": {"type": ["boolean", "null"]},
+    "components": {"type": "array"},
+    "errors": {"type": "array", "items": {"type": "string"}},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

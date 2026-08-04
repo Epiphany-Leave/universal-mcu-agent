@@ -1,0 +1,20 @@
+schema_version: "2.0"
+work_package_types:
+  UI_FEATURE:
+    handler: runtime.work_package_factory
+    verification_tiers: [host, build, target]
+  SENSOR_DRIVER:
+    handler: runtime.work_package_factory
+    verification_tiers: [host, build, target]
+  SCHEDULER_OPTIMIZATION:
+    handler: runtime.work_package_factory
+    verification_tiers: [analysis, build, target]
+  HARDWARE_EVIDENCE_RESOLUTION:
+    handler: workflows/evidence-resolution.md
+    review_budget: {max_rounds: 2, exhausted_action: CLOSE_WITH_DEBT}
+  PLATFORM_INTEGRATION:
+    handler: runtime.platforms
+    verification_tiers: [build, target]
+  VALIDATION:
+    handler: workflows/build.md
+    verification_tiers: [host, build, target]

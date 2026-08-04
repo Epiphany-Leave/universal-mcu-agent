@@ -1,0 +1,64 @@
+# MCU Agent 项目配置
+# 由 project-setup workflow 自动生成
+
+project:
+  name: "<项目名称>"
+  type: ""                        # product / competition / learning / prototype
+  mode: "production"              # production / prototype / exploration; changes require owner approval
+
+mcu:
+  family: ""                      # stm32 / esp32 / ch592 / ti-c2000 / gd32 / py32
+  chip: ""                        # STM32F407VGT6 / ESP32-S31 / CH592D / TMS320F280049C
+  arch: ""                        # arm / riscv / xtensa
+  flash: ""                       # Flash 容量，如 16MB
+  psram: ""                       # PSRAM 容量，如 16MB
+
+toolchain:
+  ide: ""                         # keil / esp-idf / mounriver / ccs / arduino
+  compiler: ""                    # gcc / armcc / riscv-gcc
+  version: ""                     # IDE 版本号
+
+hardware:
+  screen: ""                      # 屏幕规格，如 10.1寸 1024x600
+  camera: ""                      # 摄像头型号
+  audio_codec: ""                 # 音频编解码器
+  amplifier: ""                   # 功放芯片
+  touch: ""                       # 触控芯片
+  wifi: ""                        # WiFi 模块/芯片
+
+knowledge:
+  platform: ""                    # 自动从 mcu.family 推导: stm32/esp32/ch592/ti-c2000
+  load_common: true               # 是否加载通用知识 (knowledge/common/)
+  load_platform: true             # 是否加载平台知识 (knowledge/<platform>/)
+
+directories:
+  hardware: "hardware"
+  requirements: "project/requirements"
+  schematic: "hardware/schematic"
+  datasheet: "hardware/datasheets"
+  software: "software"
+  firmware: "software/<项目名称>"
+  drivers: "software/<项目名称>/components"
+  docs: "software/<项目名称>/docs"
+  debug: "software/<项目名称>/debug"
+  production: "artifacts"
+  tools: "tools"
+  examples: "references"
+  releases: "releases"
+  archive: "archive"
+
+lifecycle:
+  phase_state: ".mcu-agent/runtime/phase-state.json"
+  evidence_debts: ".mcu-agent/runtime/evidence-debts.json"
+  artifact_manifest: ".mcu-agent/artifact-manifest.yaml"
+  assumptions: ".mcu-agent/runtime/engineering-assumptions.json"
+  execution_ledger: ".mcu-agent/runtime/execution-ledger.json"
+
+rules:
+  - "人管物理世界，AI 管信息世界"
+  - "不猜测引脚和寄存器，只使用文档中确认的信息"
+  - "工程目录内部结构不拆分"
+  - "编译失败最多自动修复 5 轮"
+  - "目录名使用英文"
+  - "项目经验不自动进入公共知识库"
+  - "WAITING_EXTERNAL 后输入身份、版本或哈希未变化时停止重复审计"
