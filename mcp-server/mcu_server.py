@@ -316,6 +316,47 @@ def route_esp_skill(
 
 
 @mcp.tool()
+def session_bootstrap(product_root: str, agent: str, mode: str = "production") -> str:
+    """Validate the host entry file and record a session runtime handshake."""
+    from runtime.session_bootstrap import SessionBootstrap, SessionBootstrapError
+    try:
+        result = SessionBootstrap().start(product_root, agent=agent, mode=mode)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except SessionBootstrapError as exc:
+        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+
+
+@mcp.tool()
+def search_project_memory(product_root: str, query: str, platform: str = "", limit: int = 5) -> str:
+    """Search project-scoped memories without accessing public knowledge."""
+    from runtime.memory import ProjectMemoryStore
+    result = ProjectMemoryStore(product_root).search(query, platform=platform or None, limit=limit)
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def approve_project_memory(product_root: str, memory_id: str, reviewer: str, notes: str = "") -> str:
+    """Approve a project memory for project-level reuse."""
+    from runtime.memory import ProjectMemoryError, ProjectMemoryStore
+    try:
+        result = ProjectMemoryStore(product_root).approve(memory_id, reviewer=reviewer, notes=notes)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except ProjectMemoryError as exc:
+        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+
+
+@mcp.tool()
+def promote_project_memory(product_root: str, memory_id: str, target: str, reviewer: str) -> str:
+    """Promote an approved memory into project common/platform knowledge."""
+    from runtime.memory import ProjectMemoryError, ProjectMemoryStore
+    try:
+        result = ProjectMemoryStore(product_root).promote(memory_id, target=target, reviewer=reviewer)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except ProjectMemoryError as exc:
+        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+
+
+@mcp.tool()
 def finalize_task(
     task_json: str,
     context_json: str,
@@ -461,6 +502,10 @@ def list_tools() -> str:
         {"name": "prepare_task", "description": "为模型准备受限 Task 上下文"},
         {"name": "finalize_task", "description": "验证模型修改并推进 Task 状态"},
         {"name": "route_esp_skill", "description": "将可选 esp-dev-skill 路由为受限 ESP recipe/API 参考"},
+        {"name": "session_bootstrap", "description": "验证宿主入口并记录本次 runtime 会话握手"},
+        {"name": "search_project_memory", "description": "检索当前项目范围内的经验记忆"},
+        {"name": "approve_project_memory", "description": "人工批准项目经验记忆"},
+        {"name": "promote_project_memory", "description": "将已批准记忆提升到项目公共知识目录"},
         {"name": "get_knowledge", "description": "获取 MCU 知识"},
         {"name": "get_workflow", "description": "获取工作流定义"},
         {"name": "list_tools", "description": "列出所有工具"},

@@ -2,6 +2,12 @@
 
 All MCU requests must enter the shared runtime before a workflow handler is selected:
 
+At the start of a Codex session, run:
+
+```bash
+python .mcu-agent/runtime/cli.py session-bootstrap --agent codex --mode production .
+```
+
 ```bash
 python .mcu-agent/runtime/cli.py plan "<user request>" --mode <production|prototype|exploration>
 ```

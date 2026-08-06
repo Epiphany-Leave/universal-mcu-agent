@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, Iterable, List
 
 from .artifact_resolver import ArtifactManifestError, ArtifactResolver
 from .esp_dev_skill import EspDevSkillError, EspDevSkillRouter
+from .memory import ProjectMemoryError, ProjectMemoryStore
 from .transition_engine import TransitionEngine, TransitionError
 
 
@@ -65,6 +66,9 @@ class TaskExecutor:
             )
         except EspDevSkillError as exc:
             raise TaskExecutionError(str(exc)) from exc
+        project_memories = ProjectMemoryStore(product).search(
+            f"{request} {task.get('title', '')}", platform=platform, limit=5
+        )
         return {
             "schema_version": "2.0",
             "task_id": task["id"],
@@ -72,11 +76,14 @@ class TaskExecutor:
             "request": request,
             "mode": mode,
             "verification_tier": task.get("verification_tier", "host"),
+            "platform": platform or "",
             "project_root": str(project),
+            "product_root": str(product),
             "allowed_roots": [str(path) for path in allowed_roots],
             "input_artifacts": inputs,
             "requirements": task.get("requirements", []),
             "esp_dev_skill": skill_context,
+            "project_memories": project_memories,
             "instructions": (
                 "Implement only this Task. Keep unrelated findings as debt. "
                 "Use esp_dev_skill references when present, but keep Task scope, "
@@ -93,6 +100,7 @@ class TaskExecutor:
         model_runner: ModelRunner,
         verifier: Verifier | None = None,
         manifest: ArtifactResolver | None = None,
+        memory: ProjectMemoryStore | None = None,
     ) -> Dict[str, Any]:
         working = deepcopy(task)
         if working.get("state") == "READY":
@@ -118,6 +126,28 @@ class TaskExecutor:
                     manifest.register_generated(output, producer=f"task:{working['id']}")
         verification = verifier(working, model_result) if verifier else model_result.get("verification")
         working["execution"] = self._execution_record(model_result, verification)
+        memory_store = memory
+        if memory_store is None and context.get("product_root"):
+            memory_store = ProjectMemoryStore(context["product_root"])
+        if memory_store is not None:
+            try:
+                memory_record = memory_store.capture(
+                    summary=model_result.get("summary", "") or working.get("title", "Task result"),
+                    problem=context.get("request", ""),
+                    solution=model_result.get("summary", ""),
+                    source_task=working.get("id", ""),
+                    platform=context.get("platform", ""),
+                    source_files=model_result.get("changed_files", []),
+                    source_artifacts=[item.get("id", "") for item in context.get("input_artifacts", []) if item.get("id")],
+                    verification=verification,
+                    confidence="verified" if isinstance(verification, dict) and verification.get("passed") is True else "draft",
+                    tags=[working.get("handler", "firmware-development"), working.get("verification_tier", "host")],
+                )
+                working["execution"]["memory_id"] = memory_record["memory_id"]
+                if memory_record.get("deduplicated"):
+                    working["execution"]["memory_deduplicated"] = True
+            except ProjectMemoryError as exc:
+                working["execution"]["memory_error"] = str(exc)
         if verification is None:
             self.transitions.transition("task", working, "VALIDATING")
             return working

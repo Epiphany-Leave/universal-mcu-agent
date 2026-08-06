@@ -2,6 +2,14 @@
 
 ## Mandatory Dispatch Contract
 
+At the start of each host-agent session, acknowledge this entry and run the session handshake once:
+
+```bash
+python .mcu-agent/runtime/cli.py session-bootstrap --agent <claude-code|codex|opencode|cursor> --mode <production|prototype|exploration> .
+```
+
+The handshake records the active entry file and applies to the rest of the session. It does not replace the per-request `plan` command below.
+
 For **every** request involving an MCU project, firmware, hardware evidence, build, debug, UI, driver, or embedded software, you **MUST run the runtime plan command before replying, asking clarification, selecting a workflow, or editing a file**. Treat this as an execution requirement, not optional guidance.
 
 Run it from the project root:

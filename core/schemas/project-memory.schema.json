@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/project-memory.schema.json",
+  "title": "Project Memory",
+  "type": "object",
+  "required": ["schema_version", "memory_id", "scope", "status", "summary", "confidence", "created_at"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "memory_id": {"type": "string", "pattern": "^mem-[a-f0-9]{12}$"},
+    "scope": {"const": "project"},
+    "status": {"enum": ["DRAFT", "APPROVED_PROJECT", "PROMOTED", "REJECTED", "SUPERSEDED"]},
+    "summary": {"type": "string", "minLength": 1},
+    "problem": {"type": "string"},
+    "solution": {"type": "string"},
+    "source_task": {"type": "string"},
+    "work_package": {"type": "string"},
+    "platform": {"type": "string"},
+    "chip": {"type": "string"},
+    "source_files": {"type": "array", "items": {"type": "string"}},
+    "source_artifacts": {"type": "array", "items": {"type": "string"}},
+    "verification": {"type": ["object", "null"]},
+    "confidence": {"enum": ["verified", "draft", "experimental"]},
+    "tags": {"type": "array", "items": {"type": "string"}},
+    "fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "created_at": {"type": "string"},
+    "updated_at": {"type": "string"}
+  },
+  "additionalProperties": true
+}

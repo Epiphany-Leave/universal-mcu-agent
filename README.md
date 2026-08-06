@@ -63,6 +63,15 @@ Claude 项目安装会创建项目根 `CLAUDE.md`；Codex 使用 `AGENTS.md`；O
 .\install.ps1 -Agent claude-code -Project "D:\work\pet-robot" -Force
 ```
 
+每次启动 Claude Code 或 Codex 会话后，先执行一次会话握手：
+
+```powershell
+python .mcu-agent\runtime\cli.py session-bootstrap --agent claude-code --mode production .
+python .mcu-agent\runtime\cli.py session-bootstrap --agent codex --mode production .
+```
+
+握手会检查宿主入口文件和 runtime 是否存在，并在 `.mcu-agent/runtime/sessions/` 记录本次会话。它不能替代每个请求的 `plan`，但能明确本次会话遵循项目入口规则。
+
 清理旧版本 Claude 全局入口：
 
 ```powershell
@@ -100,6 +109,40 @@ python .mcu-agent/runtime/cli.py finalize-task \
 ```
 
 TaskExecutor 负责编辑范围、canonical artifact、模型输出、验证结果和 Task 状态；AI 模型仍负责实际代码设计与修改。
+
+## 项目记忆
+
+Task 完成后，runtime 会自动生成项目范围的记忆草稿：
+
+```text
+.mcu-agent/runtime/memories/<memory-id>.json
+```
+
+后续 `prepare-task` 会按请求、平台和 Task 标题检索相关记忆，并将结果放入 `project_memories`。项目记忆不会自动解锁硬件 Task，也不会自动进入公共知识库。
+
+查看项目记忆：
+
+```powershell
+python .mcu-agent\runtime\cli.py memory-search . "ESP-IDF component build" --platform esp32
+```
+
+人工批准后，记忆状态变为 `APPROVED_PROJECT`：
+
+```powershell
+python .mcu-agent\runtime\cli.py memory-approve . mem-xxxxxxxxxxxx `
+  --reviewer Epiphanye `
+  --notes "确认可复用"
+```
+
+只有批准的记忆才能提升到当前项目的公共知识目录：
+
+```powershell
+python .mcu-agent\runtime\cli.py memory-promote . mem-xxxxxxxxxxxx `
+  --target platform `
+  --reviewer Epiphanye
+```
+
+支持的状态为 `DRAFT`、`APPROVED_PROJECT`、`PROMOTED`、`REJECTED`、`SUPERSEDED`。项目记忆必须保留来源 Task、源文件、验证结果、平台和置信度；公共知识提升仍需人工维护知识注册表。
 
 ## ESP 专用知识
 

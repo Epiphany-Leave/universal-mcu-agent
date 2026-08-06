@@ -41,6 +41,12 @@ python mcu_server.py --test <project_path>
 | `prepare_task` | 为模型准备受限 Task 上下文 |
 | `finalize_task` | 验证模型修改并推进 Task 状态 |
 | `route_esp_skill` | 将可选 esp-dev-skill 路由为受限 ESP recipe/API 参考 |
+| `session_bootstrap` | 建立宿主 Agent 会话握手并记录当前项目会话 |
+| `search_project_memory` | 检索当前项目范围内的已记录经验 |
+| `approve_project_memory` | 人工批准一条项目记忆进入项目知识状态 |
+| `promote_project_memory` | 将已批准的项目记忆提升为公共或平台知识 |
+
+项目记忆默认写入项目的 `.mcu-agent/runtime/memories/`，并带有来源、置信度、验证信息和项目范围。`search_project_memory` 只提供上下文，不能解除 evidence 或 capability gate；只有人工批准后的记忆才允许通过 `promote_project_memory` 写入公共知识目录。
 
 ## MCP 配置
 

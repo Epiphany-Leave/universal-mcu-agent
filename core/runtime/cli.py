@@ -13,6 +13,8 @@ if __package__ in {None, ""}:
     from runtime.engine import RuntimeEngine
     from runtime.artifact_resolver import ArtifactResolver
     from runtime.esp_dev_skill import EspDevSkillRouter
+    from runtime.memory import ProjectMemoryStore
+    from runtime.session_bootstrap import SessionBootstrap
     from runtime.platforms.esp_idf import EspIdfAdapter
     from runtime.project_layout import create_project_layout, project_paths
     from runtime.review_budget import ReviewBudget
@@ -22,6 +24,8 @@ else:
     from .engine import RuntimeEngine
     from .artifact_resolver import ArtifactResolver
     from .esp_dev_skill import EspDevSkillRouter
+    from .memory import ProjectMemoryStore
+    from .session_bootstrap import SessionBootstrap
     from .platforms.esp_idf import EspIdfAdapter
     from .project_layout import create_project_layout, project_paths
     from .review_budget import ReviewBudget
@@ -89,6 +93,39 @@ def main() -> int:
     esp_skill.add_argument("--product-root")
     esp_skill.add_argument("--skill-root")
     esp_skill.add_argument("--platform")
+    bootstrap = subparsers.add_parser("session-bootstrap", help="acknowledge the host runtime entry for a session")
+    bootstrap.add_argument("product_root")
+    bootstrap.add_argument("--agent", choices=["claude-code", "codex", "opencode", "cursor"], required=True)
+    bootstrap.add_argument("--mode", choices=["production", "prototype", "exploration"], default="production")
+    memory_capture = subparsers.add_parser("memory-capture", help="capture a project-scoped memory draft")
+    memory_capture.add_argument("product_root")
+    memory_capture.add_argument("summary")
+    memory_capture.add_argument("--problem", default="")
+    memory_capture.add_argument("--solution", default="")
+    memory_capture.add_argument("--task", default="")
+    memory_capture.add_argument("--work-package", default="")
+    memory_capture.add_argument("--platform", default="")
+    memory_capture.add_argument("--chip", default="")
+    memory_capture.add_argument("--source-file", action="append", default=[])
+    memory_capture.add_argument("--source-artifact", action="append", default=[])
+    memory_capture.add_argument("--verification", default="")
+    memory_capture.add_argument("--confidence", choices=["verified", "draft", "experimental"], default="draft")
+    memory_capture.add_argument("--tag", action="append", default=[])
+    memory_search = subparsers.add_parser("memory-search", help="search project-scoped memories")
+    memory_search.add_argument("product_root")
+    memory_search.add_argument("query")
+    memory_search.add_argument("--platform")
+    memory_search.add_argument("--limit", type=int, default=5)
+    memory_approve = subparsers.add_parser("memory-approve", help="approve a project memory")
+    memory_approve.add_argument("product_root")
+    memory_approve.add_argument("memory_id")
+    memory_approve.add_argument("--reviewer", required=True)
+    memory_approve.add_argument("--notes", default="")
+    memory_promote = subparsers.add_parser("memory-promote", help="promote an approved memory to project public knowledge")
+    memory_promote.add_argument("product_root")
+    memory_promote.add_argument("memory_id")
+    memory_promote.add_argument("--target", choices=["common", "platform"], required=True)
+    memory_promote.add_argument("--reviewer", required=True)
     args = parser.parse_args()
 
     if args.command == "plan":
@@ -182,6 +219,32 @@ def main() -> int:
     elif args.command == "route-esp-skill":
         result = EspDevSkillRouter(args.skill_root, product_root=args.product_root).route(
             args.request, platform=args.platform
+        )
+    elif args.command == "session-bootstrap":
+        result = SessionBootstrap().start(args.product_root, agent=args.agent, mode=args.mode)
+    elif args.command == "memory-capture":
+        verification = json.loads(args.verification) if args.verification else None
+        result = ProjectMemoryStore(args.product_root).capture(
+            summary=args.summary,
+            problem=args.problem,
+            solution=args.solution,
+            source_task=args.task,
+            work_package=args.work_package,
+            platform=args.platform,
+            chip=args.chip,
+            source_files=args.source_file,
+            source_artifacts=args.source_artifact,
+            verification=verification,
+            confidence=args.confidence,
+            tags=args.tag,
+        )
+    elif args.command == "memory-search":
+        result = ProjectMemoryStore(args.product_root).search(args.query, platform=args.platform, limit=args.limit)
+    elif args.command == "memory-approve":
+        result = ProjectMemoryStore(args.product_root).approve(args.memory_id, reviewer=args.reviewer, notes=args.notes)
+    elif args.command == "memory-promote":
+        result = ProjectMemoryStore(args.product_root).promote(
+            args.memory_id, target=args.target, reviewer=args.reviewer
         )
     else:
         paths = create_project_layout(args.product_root, args.project_name) if args.create else project_paths(args.product_root, args.project_name)

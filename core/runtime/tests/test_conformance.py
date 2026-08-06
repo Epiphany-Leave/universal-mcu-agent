@@ -11,6 +11,8 @@ sys.path.insert(0, str(CORE))
 
 from runtime.artifact_resolver import ArtifactManifestError, ArtifactResolver, write_manifest
 from runtime.esp_dev_skill import EspDevSkillRouter
+from runtime.memory import ProjectMemoryStore, ProjectMemoryError
+from runtime.session_bootstrap import SessionBootstrap, SessionBootstrapError
 from runtime.engine import RuntimeEngine
 from runtime.platforms.esp_idf import EspIdfAdapter
 from runtime.project_layout import create_project_layout
@@ -27,6 +29,49 @@ UNKNOWN_LCD = [{
 
 
 class RuntimeConformanceTests(unittest.TestCase):
+    def test_session_bootstrap_records_host_handshake(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".mcu-agent" / "runtime").mkdir(parents=True)
+            (root / ".mcu-agent" / "runtime" / "cli.py").write_text("# runtime", encoding="utf-8")
+            (root / "CLAUDE.md").write_text("runtime entry", encoding="utf-8")
+            result = SessionBootstrap().start(root, agent="claude-code", mode="prototype")
+            self.assertEqual("ACCEPTED", result["handshake"])
+            self.assertTrue(Path(result["record_path"]).is_file())
+            with self.assertRaises(SessionBootstrapError):
+                SessionBootstrap().start(root, agent="codex")
+
+    def test_project_memory_is_deduplicated_approved_and_promoted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = ProjectMemoryStore(root)
+            record = store.capture(
+                summary="ESP-IDF component was missing from the build graph",
+                problem="Build passed but compile_commands omitted lcd_driver",
+                solution="Validate compile_commands inclusion after idf.py build",
+                source_task="platform_component",
+                platform="esp32",
+                confidence="verified",
+                tags=["esp-idf", "component"],
+            )
+            duplicate = store.capture(
+                summary="ESP-IDF component was missing from the build graph",
+                problem="Build passed but compile_commands omitted lcd_driver",
+                solution="Validate compile_commands inclusion after idf.py build",
+                source_task="platform_component",
+                platform="esp32",
+                confidence="verified",
+            )
+            self.assertEqual(record["memory_id"], duplicate["memory_id"])
+            self.assertTrue(store.search("lcd_driver build", platform="esp32"))
+            with self.assertRaises(ProjectMemoryError):
+                store.promote(record["memory_id"], target="platform", reviewer="reviewer")
+            approved = store.approve(record["memory_id"], reviewer="reviewer", notes="reusable build lesson")
+            self.assertEqual("APPROVED_PROJECT", approved["status"])
+            promoted = store.promote(record["memory_id"], target="platform", reviewer="reviewer")
+            self.assertEqual("PROMOTED", promoted["status"])
+            self.assertTrue(Path(promoted["promoted_path"]).is_file())
+
     def test_optional_esp_skill_routes_without_becoming_a_gate(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -174,6 +219,7 @@ class RuntimeConformanceTests(unittest.TestCase):
             )
             self.assertEqual("DONE", result["state"])
             self.assertEqual("host-test", result["execution"]["verification"]["command"])
+            self.assertTrue(result["execution"].get("memory_id"))
 
             outside = product / "hardware" / "notes.txt"
             outside.parent.mkdir()
