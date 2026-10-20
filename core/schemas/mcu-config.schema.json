@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/mcu-config.schema.json",
+  "title": "Universal MCU Agent project configuration",
+  "type": "object",
+  "properties": {
+    "project": {"$ref": "#/$defs/scalarSection"},
+    "mcu": {"$ref": "#/$defs/scalarSection"},
+    "hardware": {"$ref": "#/$defs/scalarSection"},
+    "directories": {"$ref": "#/$defs/scalarSection"},
+    "knowledge": {"$ref": "#/$defs/scalarSection"},
+    "lifecycle": {"$ref": "#/$defs/scalarSection"},
+    "rules": {"type": "array", "items": {"type": "string"}},
+    "toolchain": {
+      "type": "object",
+      "properties": {
+        "verification_profiles": {"$ref": "#/$defs/profiles"},
+        "verification_profile": {"$ref": "#/$defs/profile"},
+        "analysis_profile": {"$ref": "#/$defs/profile"},
+        "host_profile": {"$ref": "#/$defs/profile"},
+        "build_profile": {"$ref": "#/$defs/profile"},
+        "target_profile": {"$ref": "#/$defs/profile"},
+        "build_command": {"type": "string", "minLength": 1},
+        "allow_shell_command": {"type": "boolean"}
+      },
+      "additionalProperties": {"$ref": "#/$defs/scalar"}
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "profiles": {"$ref": "#/$defs/profiles"},
+        "profile": {"$ref": "#/$defs/profile"}
+      },
+      "additionalProperties": true
+    },
+    "verification_profiles": {"$ref": "#/$defs/profiles"},
+    "verification_profile": {"$ref": "#/$defs/profile"},
+    "snapshot": {
+      "type": "object",
+      "properties": {
+        "generated_cache_paths": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "allow_shell_command": {"type": "boolean"}
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "scalar": {"type": ["string", "number", "integer", "boolean", "null"]},
+    "scalarSection": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/scalar"}
+    },
+    "argv": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "tier": {"enum": ["analysis", "host", "build", "target"]},
+        "argv": {"$ref": "#/$defs/argv"},
+        "argv_posix": {"$ref": "#/$defs/argv"},
+        "argv_windows": {"$ref": "#/$defs/argv"},
+        "cwd": {"type": "string", "minLength": 1},
+        "working_directory": {"type": "string", "minLength": 1},
+        "timeout": {"type": "number", "exclusiveMinimum": 0},
+        "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "kind": {"type": "string", "minLength": 1},
+        "hil": {"type": "boolean"},
+        "env": {"$ref": "#/$defs/environment"},
+        "environment": {"$ref": "#/$defs/environment"},
+        "command": {"type": "string", "minLength": 1},
+        "commands": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "minItems": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": {"type": ["string", "number", "integer", "boolean"]}
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/profile"}
+    }
+  }
+}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<cadence version="17.4">
+  <components>
+    <component ref="U1" value="STM32F103C8T6" footprint="LQFP48">
+      <pin name="1" net="UART_RX" />
+    </component>
+    <component ref="J1" value="HEADER" footprint="HDR1">
+      <pin name="1" net="UART_RX" />
+    </component>
+  </components>
+  <nets>
+    <net name="UART_RX">
+      <node ref="U1" pin="1" />
+      <node ref="J1" pin="1" />
+    </net>
+  </nets>
+</cadence>

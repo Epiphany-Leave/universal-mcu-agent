@@ -17,7 +17,7 @@
           "scope": {"type": "string", "minLength": 1},
           "role": {"type": "string", "minLength": 1},
           "logical_name": {"type": "string", "minLength": 1},
-          "path": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1, "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"},
           "media_type": {"type": "string", "minLength": 1},
           "identity": {"type": "string", "minLength": 1},
           "revision": {"type": "integer", "minimum": 1},
@@ -28,7 +28,9 @@
           "evidence_class": {"type": "string", "minLength": 1},
           "status": {"enum": ["CURRENT", "STALE", "SUPERSEDED", "REJECTED"]},
           "accepted_by": {"type": ["string", "null"]},
-          "accepted_at": {"type": ["string", "null"]}
+          "accepted_at": {"type": ["string", "null"]},
+          "claim": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": true}]},
+          "audit": {"oneOf": [{"type": "object", "additionalProperties": true}, {"type": "array", "items": {"type": "object", "additionalProperties": true}}]}
         },
         "additionalProperties": false
       }

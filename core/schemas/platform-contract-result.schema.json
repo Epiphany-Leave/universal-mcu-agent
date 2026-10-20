@@ -3,16 +3,21 @@
   "$id": "https://universal-mcu-agent.local/schemas/platform-contract-result.schema.json",
   "title": "MCU Agent Platform Contract Result v2",
   "type": "object",
-  "required": ["platform", "scope", "target", "status", "build_succeeded", "components", "errors", "warnings"],
+  "required": ["platform", "scope", "status", "errors", "warnings"],
   "properties": {
     "platform": {"type": "string", "minLength": 1},
     "scope": {"type": "string", "minLength": 1},
     "target": {"type": ["string", "null"]},
+    "mcu": {"type": ["string", "null"]},
+    "ioc": {"type": ["string", "null"]},
     "status": {"enum": ["PASS", "FAIL"]},
     "build_succeeded": {"type": ["boolean", "null"]},
     "components": {"type": "array"},
     "errors": {"type": "array", "items": {"type": "string"}},
-    "warnings": {"type": "array", "items": {"type": "string"}}
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "revision": {"type": "integer", "minimum": 1},
+    "claim": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": true}]},
+    "audit": {"type": "object", "additionalProperties": true}
   },
   "additionalProperties": false
 }

@@ -80,42 +80,88 @@ class NetlistParser(ABC):
 
 
 def detect_netlist_format(file_path: Path) -> str:
+    """Detect an EDA format from both the extension and a content signature.
+
+    A bare extension is not enough for ambiguous ``.net`` and ``.xml`` files.
+    Detection failures are errors with diagnostics rather than an ``unknown``
+    pseudo-format that can later look like a successful empty parse.
     """
-    检测网表文件格式
-    
-    Args:
-        file_path: 网表文件路径
-        
-    Returns:
-        格式标识: 'enet', 'altium', 'kicad', 'eagle', 'unknown'
-    """
-    suffix = file_path.suffix.lower()
-    
-    if suffix == '.enet':
-        return 'enet'
-    elif suffix == '.net':
-        # 检查内容判断是 Altium 还是 KiCad
+    import json
+    import re
+    import xml.etree.ElementTree as ET
+
+    path = Path(file_path)
+    suffix = path.suffix.lower()
+    try:
+        content = path.read_text(encoding="utf-8-sig", errors="replace")
+    except OSError as exc:
+        raise ValueError(f"cannot read EDA file {path}: {exc}") from exc
+    sample = content[:65536]
+    lowered = sample.lower()
+
+    # ENET is JSON. Require its structural marker even when the suffix agrees.
+    if suffix in {".enet", ".json"} or sample.lstrip().startswith(("{", "[")):
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')[:2000]
-            if '(export' in content or '(components' in content:
-                return 'kicad'
-            else:
-                return 'altium'
-        except (OSError, UnicodeError) as exc:
-            raise ValueError(f"cannot inspect netlist format for {file_path}: {exc}") from exc
-    elif suffix == '.xml':
-        return 'eagle'
-    elif suffix == '.sch':
-        # Eagle .sch 是 XML 格式
+            payload = json.loads(content)
+        except json.JSONDecodeError as exc:
+            if suffix == ".enet":
+                raise ValueError(f"invalid ENET JSON in {path}: {exc}") from exc
+        else:
+            if isinstance(payload, dict) and isinstance(payload.get("components"), (dict, list)):
+                return "enet"
+            if suffix == ".enet":
+                raise ValueError(f"invalid ENET structure in {path}: missing components object")
+
+    # KiCad legacy netlists are S-expressions with export/components/nets.
+    if "(export" in lowered and "(components" in lowered and "(nets" in lowered:
+        return "kicad"
+
+    # XML can be either Eagle or Cadence; inspect root/tags, not just .xml.
+    if suffix in {".xml", ".sch"} or sample.lstrip().startswith("<"):
         try:
-            content = file_path.read_text(encoding='utf-8', errors='ignore')[:500]
-            if '<?xml' in content or '<eagle' in content:
-                return 'eagle'
-        except (OSError, UnicodeError) as exc:
-            raise ValueError(f"cannot inspect schematic format for {file_path}: {exc}") from exc
-        return 'unknown'
-    else:
-        return 'unknown'
+            root = ET.fromstring(content)
+        except ET.ParseError as exc:
+            if suffix in {".xml", ".sch"}:
+                raise ValueError(f"invalid XML EDA file {path}: {exc}") from exc
+        else:
+            root_name = root.tag.rsplit("}", 1)[-1].lower()
+            tags = {element.tag.rsplit("}", 1)[-1].lower() for element in root.iter()}
+            if root_name == "eagle" or {"drawing", "schematic", "parts"} <= tags:
+                return "eagle"
+            if root_name in {"cadence", "allegro", "cadencenetlist", "netlist"} and {"component", "net"} <= tags:
+                return "cadence"
+            if suffix in {".xml", ".sch"}:
+                raise ValueError(
+                    f"unrecognized XML EDA structure in {path}: root=<{root_name}>, "
+                    "expected Eagle or Cadence component/net tags"
+                )
+
+    # Protel/OrCAD/Altium and Cadence text exports use parenthesized blocks.
+    has_component_block = re.search(r"\(\s*[A-Za-z]+\d+\s+\S+\s+\S+", sample) is not None
+    has_node = re.search(r"\b[A-Za-z]+\d+-\d+\b", sample) is not None
+    if suffix == ".txt" and has_component_block and has_node:
+        return "cadence"
+    if suffix == ".net" and has_component_block and has_node:
+        return "altium"
+
+    expected = ".enet JSON, KiCad .net S-expression, Eagle XML, Cadence XML/.txt, or Altium .NET"
+    raise ValueError(
+        f"unable to detect EDA format for {path} (extension {suffix or '<none>'}); expected {expected}"
+    )
+
+
+def validate_parsed_netlist(data: dict[str, Any], format_type: str) -> dict[str, Any]:
+    """Reject malformed or connectivity-free parser output with a clear reason."""
+    components = data.get("components")
+    nets = data.get("nets")
+    if not isinstance(components, dict) or not components:
+        raise ValueError(f"{format_type} parser found no components")
+    if not isinstance(nets, dict) or not nets:
+        raise ValueError(f"{format_type} parser found no nets")
+    connected = sum(len(nodes) for nodes in nets.values() if isinstance(nodes, list))
+    if connected == 0:
+        raise ValueError(f"{format_type} parser found nets but no connected nodes")
+    return data
 
 
 def _import_parser(module_name: str, class_name: str):

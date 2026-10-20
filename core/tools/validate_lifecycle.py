@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-"""Validate MCU Agent lifecycle JSON using only the Python standard library."""
+"""Validate MCU Agent lifecycle v2 JSON using the Python standard library."""
+
+from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
-from pathlib import Path
+from datetime import datetime
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, Iterable, List, Set
 
-
+VERSION = "2.0"
 PHASE_STATUSES = {"PLANNED", "ACTIVE", "WAITING_EXTERNAL", "COMPLETED", "CANCELLED"}
 PHASE_RESULTS = {"PASS", "PASS_WITH_DEBT", "BLOCKED", "FAILED"}
 MODES = {"production", "prototype", "exploration"}
-READINESS = {"READY", "BLOCKED_HARDWARE", "BLOCKED_CONFIG", "BLOCKED_ARCHITECTURE", "DISABLED"}
 DEBT_STATES = {"OPEN", "EVIDENCE_SUBMITTED", "UNDER_REVIEW", "WAITING_EXTERNAL", "CONFIRMED", "CONFLICT", "REJECTED", "WAIVED_PROTOTYPE_ONLY", "CLOSED"}
-EVIDENCE_CLASSES = {"HARDWARE_FACT", "DEVICE_DOCUMENTATION", "OFFICIAL_BOARD_PROFILE", "OFFICIAL_BOARD_VALIDATION", "IMPLEMENTATION_REFERENCE", "GENERATED_CONFIG", "UNTRUSTED_OR_MODIFIED"}
 ARTIFACT_STATUSES = {"CURRENT", "STALE", "SUPERSEDED", "REJECTED"}
+EAR_STATES = {"PROPOSED", "APPROVED", "EXPIRED", "REVOKED", "VALIDATED"}
 
 
 def _required(obj: Dict[str, Any], fields: Iterable[str], where: str, errors: List[str]) -> None:
@@ -23,20 +26,35 @@ def _required(obj: Dict[str, Any], fields: Iterable[str], where: str, errors: Li
             errors.append(f"{where}: missing required field '{field}'")
 
 
-def _nonempty_list(value: Any) -> bool:
-    return isinstance(value, list) and bool(value) and all(isinstance(item, str) and item for item in value)
+def _strings(value: Any, *, nonempty: bool = False) -> bool:
+    return isinstance(value, list) and (not nonempty or bool(value)) and all(isinstance(item, str) and item for item in value)
 
 
-def validate_phase(data: Any) -> List[str]:
+def _version(data: Dict[str, Any], where: str, errors: List[str]) -> None:
+    if data.get("schema_version") != VERSION:
+        errors.append(f"{where}.schema_version: expected {VERSION!r}")
+
+
+def _safe_relative(value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    normalized = value.replace("\\", "/")
+    path = Path(normalized)
+    return not path.is_absolute() and not PureWindowsPath(value).is_absolute() and ".." not in path.parts
+
+
+def _validate_phase_v1(data: Dict[str, Any]) -> List[str]:
+    """Validate legacy phase records during the one-release migration window."""
     errors: List[str] = []
-    if not isinstance(data, dict):
-        return ["phase: expected an object"]
-    _required(data, ["schema_version", "phase_id", "revision", "mode", "status", "result", "entry_criteria", "exit_criteria", "artifacts", "work_items", "requested_external_inputs", "resume_criteria", "successor_phase", "reopen"], "phase", errors)
-    if data.get("schema_version") != "1.0":
-        errors.append("phase.schema_version: expected '1.0'")
+    required = [
+        "schema_version", "phase_id", "revision", "mode", "status", "result",
+        "entry_criteria", "exit_criteria", "artifacts", "work_items",
+        "requested_external_inputs", "resume_criteria", "successor_phase", "reopen",
+    ]
+    _required(data, required, "phase", errors)
     if not isinstance(data.get("phase_id"), str) or not data.get("phase_id"):
         errors.append("phase.phase_id: expected a non-empty string")
-    if not isinstance(data.get("revision"), int) or data.get("revision", 0) < 1:
+    if not isinstance(data.get("revision"), int) or isinstance(data.get("revision"), bool) or data.get("revision", 0) < 1:
         errors.append("phase.revision: expected an integer >= 1")
     if data.get("mode") not in MODES:
         errors.append(f"phase.mode: invalid value {data.get('mode')!r}")
@@ -44,40 +62,62 @@ def validate_phase(data: Any) -> List[str]:
         errors.append(f"phase.status: invalid value {data.get('status')!r}")
     if data.get("result") not in PHASE_RESULTS:
         errors.append(f"phase.result: invalid value {data.get('result')!r}")
-    artifacts = data.get("artifacts")
-    if not isinstance(artifacts, dict):
+    for field in ("entry_criteria", "exit_criteria", "requested_external_inputs", "resume_criteria"):
+        if not _strings(data.get(field)):
+            errors.append(f"phase.{field}: expected a string list")
+    if not isinstance(data.get("artifacts"), dict):
         errors.append("phase.artifacts: expected an object")
-    else:
-        _required(artifacts, ["consumed", "produced"], "phase.artifacts", errors)
-        if data.get("status") == "COMPLETED" and not artifacts.get("closure"):
-            errors.append("phase.artifacts.closure: required when status is COMPLETED")
+    if not isinstance(data.get("work_items"), list):
+        errors.append("phase.work_items: expected a list")
     if data.get("status") == "WAITING_EXTERNAL":
-        if not _nonempty_list(data.get("requested_external_inputs")):
-            errors.append("phase.requested_external_inputs: non-empty list required for WAITING_EXTERNAL")
-        if not _nonempty_list(data.get("resume_criteria")):
-            errors.append("phase.resume_criteria: non-empty list required for WAITING_EXTERNAL")
-    for field in ("entry_criteria", "exit_criteria", "work_items", "requested_external_inputs", "resume_criteria"):
-        if not isinstance(data.get(field), list):
-            errors.append(f"phase.{field}: expected a list")
-    if data.get("reopen") is not None:
-        reopen = data.get("reopen")
-        if not isinstance(reopen, dict):
-            errors.append("phase.reopen: expected null or an object")
-        else:
-            _required(reopen, ["reason", "authority", "previous_revision"], "phase.reopen", errors)
-    work_ids: Set[str] = set()
-    work_items = data.get("work_items", []) if isinstance(data.get("work_items", []), list) else []
-    for index, item in enumerate(work_items):
-        where = f"phase.work_items[{index}]"
-        if not isinstance(item, dict):
-            errors.append(f"{where}: expected an object")
-            continue
-        _required(item, ["id", "readiness", "debt_ids"], where, errors)
-        if item.get("id") in work_ids:
-            errors.append(f"{where}.id: duplicate value {item.get('id')!r}")
-        work_ids.add(item.get("id"))
-        if item.get("readiness") not in READINESS:
-            errors.append(f"{where}.readiness: invalid value {item.get('readiness')!r}")
+        if not _strings(data.get("requested_external_inputs"), nonempty=True):
+            errors.append("phase.requested_external_inputs: required for WAITING_EXTERNAL")
+        if not _strings(data.get("resume_criteria"), nonempty=True):
+            errors.append("phase.resume_criteria: required for WAITING_EXTERNAL")
+    return errors
+
+
+def validate_phase(data: Any) -> List[str]:
+    errors: List[str] = []
+    if not isinstance(data, dict):
+        return ["phase: expected an object"]
+    if data.get("schema_version") == "1.0":
+        return _validate_phase_v1(data)
+    required = ["schema_version", "phase_id", "revision", "mode", "status", "result", "entry_criteria", "completion_criteria", "work_package_ids", "artifacts", "review_budget", "reopen"]
+    _required(data, required, "phase", errors)
+    _version(data, "phase", errors)
+    if not isinstance(data.get("phase_id"), str) or not data.get("phase_id"):
+        errors.append("phase.phase_id: expected a non-empty string")
+    if not isinstance(data.get("revision"), int) or isinstance(data.get("revision"), bool) or data.get("revision", 0) < 1:
+        errors.append("phase.revision: expected an integer >= 1")
+    if data.get("mode") not in MODES:
+        errors.append(f"phase.mode: invalid value {data.get('mode')!r}")
+    if data.get("status") not in PHASE_STATUSES:
+        errors.append(f"phase.status: invalid value {data.get('status')!r}")
+    if data.get("result") not in PHASE_RESULTS:
+        errors.append(f"phase.result: invalid value {data.get('result')!r}")
+    if not _strings(data.get("entry_criteria")):
+        errors.append("phase.entry_criteria: expected a string list")
+    if not _strings(data.get("completion_criteria"), nonempty=True):
+        errors.append("phase.completion_criteria: expected a non-empty string list")
+    if not _strings(data.get("work_package_ids")):
+        errors.append("phase.work_package_ids: expected a string list")
+    if not isinstance(data.get("artifacts"), dict):
+        errors.append("phase.artifacts: expected an object")
+    budget = data.get("review_budget")
+    if not isinstance(budget, dict):
+        errors.append("phase.review_budget: expected an object")
+    else:
+        _required(budget, ["max_rounds", "exhausted_action"], "phase.review_budget", errors)
+        if not isinstance(budget.get("max_rounds"), int) or budget.get("max_rounds", 0) < 1:
+            errors.append("phase.review_budget.max_rounds: expected an integer >= 1")
+        if budget.get("exhausted_action") != "CLOSE_WITH_DEBT":
+            errors.append("phase.review_budget.exhausted_action: expected 'CLOSE_WITH_DEBT'")
+    reopen = data.get("reopen")
+    if reopen is not None and not isinstance(reopen, dict):
+        errors.append("phase.reopen: expected null or an object")
+    elif isinstance(reopen, dict):
+        _required(reopen, ["reason", "authority", "previous_revision"], "phase.reopen", errors)
     return errors
 
 
@@ -86,33 +126,39 @@ def validate_debts(data: Any) -> List[str]:
     if not isinstance(data, dict):
         return ["debts: expected an object"]
     _required(data, ["schema_version", "revision", "debts"], "debts", errors)
-    if data.get("schema_version") != "1.0":
-        errors.append("debts.schema_version: expected '1.0'")
-    if not isinstance(data.get("debts"), list):
-        errors.append("debts.debts: expected a list")
+    _version(data, "debts", errors)
+    if not isinstance(data.get("revision"), int) or data.get("revision", 0) < 1:
+        errors.append("debts.revision: expected an integer >= 1")
+    debts = data.get("debts")
+    if not isinstance(debts, list):
+        return errors + ["debts.debts: expected a list"]
     ids: Set[str] = set()
-    debt_items = data.get("debts", []) if isinstance(data.get("debts", []), list) else []
-    for index, debt in enumerate(debt_items):
+    for index, debt in enumerate(debts):
         where = f"debts.debts[{index}]"
         if not isinstance(debt, dict):
             errors.append(f"{where}: expected an object")
             continue
-        _required(debt, ["id", "state", "statement", "evidence_required", "dependencies", "sources", "acceptance_record"], where, errors)
+        fields = ["id", "state", "statement", "capability_id", "fact_names", "evidence_required", "blocked_task_ids", "dependencies", "sources", "acceptance_record", "owner"]
+        _required(debt, fields, where, errors)
         debt_id = debt.get("id")
-        if debt_id in ids:
+        if not isinstance(debt_id, str) or not debt_id:
+            errors.append(f"{where}.id: expected a non-empty string")
+        elif debt_id in ids:
             errors.append(f"{where}.id: duplicate value {debt_id!r}")
         ids.add(debt_id)
         state = debt.get("state")
         if state not in DEBT_STATES:
             errors.append(f"{where}.state: invalid value {state!r}")
-        if not isinstance(debt.get("statement"), str) or not debt.get("statement"):
-            errors.append(f"{where}.statement: expected a non-empty string")
-        if not _nonempty_list(debt.get("evidence_required")):
-            errors.append(f"{where}.evidence_required: expected a non-empty string list")
-        if state == "CONFIRMED" and (not _nonempty_list(debt.get("sources")) or not debt.get("acceptance_record")):
+        for field in ("fact_names", "evidence_required"):
+            if not _strings(debt.get(field), nonempty=True):
+                errors.append(f"{where}.{field}: expected a non-empty string list")
+        for field in ("blocked_task_ids", "dependencies", "sources"):
+            if not _strings(debt.get(field)):
+                errors.append(f"{where}.{field}: expected a string list")
+        if state == "CONFIRMED" and (not debt.get("sources") or not debt.get("acceptance_record")):
             errors.append(f"{where}: CONFIRMED requires sources and acceptance_record")
-        if state == "WAITING_EXTERNAL" and not _nonempty_list(debt.get("requested_inputs")):
-            errors.append(f"{where}.requested_inputs: non-empty list required for WAITING_EXTERNAL")
+        if state == "WAITING_EXTERNAL" and not _strings(debt.get("requested_inputs"), nonempty=True):
+            errors.append(f"{where}.requested_inputs: required for WAITING_EXTERNAL")
     return errors
 
 
@@ -123,7 +169,7 @@ def _cycle_errors(graph: Dict[str, List[str]]) -> List[str]:
 
     def visit(node: str, trail: List[str]) -> None:
         if node in visiting:
-            start = trail.index(node)
+            start = trail.index(node) if node in trail else 0
             errors.append("artifacts: dependency cycle: " + " -> ".join(trail[start:] + [node]))
             return
         if node in visited:
@@ -145,34 +191,38 @@ def validate_artifacts(data: Any) -> List[str]:
     if not isinstance(data, dict):
         return ["artifacts: expected an object"]
     _required(data, ["schema_version", "revision", "artifacts"], "artifacts", errors)
-    if data.get("schema_version") != "1.0":
-        errors.append("artifacts.schema_version: expected '1.0'")
-    if not isinstance(data.get("artifacts"), list):
-        errors.append("artifacts.artifacts: expected a list")
+    _version(data, "artifacts", errors)
+    artifacts = data.get("artifacts")
+    if not isinstance(artifacts, list):
+        return errors + ["artifacts.artifacts: expected a list"]
     ids: Set[str] = set()
     graph: Dict[str, List[str]] = {}
-    artifact_items = data.get("artifacts", []) if isinstance(data.get("artifacts", []), list) else []
-    for index, artifact in enumerate(artifact_items):
+    current_roles: Set[tuple[str, str]] = set()
+    for index, artifact in enumerate(artifacts):
         where = f"artifacts.artifacts[{index}]"
         if not isinstance(artifact, dict):
             errors.append(f"{where}: expected an object")
             continue
-        _required(artifact, ["id", "path", "type", "revision", "sha256", "producer", "dependencies", "supersedes", "evidence_class", "status"], where, errors)
+        fields = ["id", "scope", "role", "logical_name", "path", "media_type", "identity", "revision", "sha256", "producer", "dependencies", "supersedes", "evidence_class", "status"]
+        _required(artifact, fields, where, errors)
         artifact_id = artifact.get("id")
         if artifact_id in ids:
             errors.append(f"{where}.id: duplicate value {artifact_id!r}")
         ids.add(artifact_id)
-        graph[artifact_id] = artifact.get("dependencies", []) if isinstance(artifact.get("dependencies"), list) else []
-        if artifact.get("evidence_class") not in EVIDENCE_CLASSES:
-            errors.append(f"{where}.evidence_class: invalid value {artifact.get('evidence_class')!r}")
+        dependencies = artifact.get("dependencies", [])
+        graph[artifact_id] = dependencies if isinstance(dependencies, list) else []
         if artifact.get("status") not in ARTIFACT_STATUSES:
             errors.append(f"{where}.status: invalid value {artifact.get('status')!r}")
-        for field in ("id", "path", "type", "producer"):
-            if not isinstance(artifact.get(field), str) or not artifact.get(field):
-                errors.append(f"{where}.{field}: expected a non-empty string")
-        sha256 = artifact.get("sha256")
-        if sha256 is not None and (not isinstance(sha256, str) or len(sha256) != 64 or any(char not in "0123456789abcdefABCDEF" for char in sha256)):
+        if not _safe_relative(artifact.get("path")):
+            errors.append(f"{where}.path: expected a confined relative path")
+        digest = artifact.get("sha256")
+        if digest is not None and (not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest)):
             errors.append(f"{where}.sha256: expected null or 64 hexadecimal characters")
+        if artifact.get("status") == "CURRENT":
+            role_key = (artifact.get("scope"), artifact.get("role"))
+            if role_key in current_roles:
+                errors.append(f"{where}: duplicate CURRENT artifact for scope/role {role_key!r}")
+            current_roles.add(role_key)
     for artifact_id, dependencies in graph.items():
         for dependency in dependencies:
             if dependency not in graph:
@@ -185,12 +235,24 @@ def validate_ear(data: Any) -> List[str]:
     errors: List[str] = []
     if not isinstance(data, dict):
         return ["engineering_assumption: expected an object"]
-    fields = ["schema_version", "id", "mode", "scope", "assumption", "source", "rationale", "risks", "validation_plan", "owner", "expires_at", "rollback"]
+    fields = ["schema_version", "id", "mode", "state", "task_ids", "scope", "assumption", "risks", "validation_method", "owner", "expires_at", "rollback", "approved_by"]
     _required(data, fields, "engineering_assumption", errors)
-    if data.get("schema_version") != "1.0":
-        errors.append("engineering_assumption.schema_version: expected '1.0'")
+    _version(data, "engineering_assumption", errors)
     if data.get("mode") not in {"prototype", "exploration"}:
         errors.append("engineering_assumption.mode: must be prototype or exploration")
+    if data.get("state") not in EAR_STATES:
+        errors.append(f"engineering_assumption.state: invalid value {data.get('state')!r}")
+    if not _strings(data.get("task_ids"), nonempty=True):
+        errors.append("engineering_assumption.task_ids: expected a non-empty string list")
+    try:
+        expires = data.get("expires_at")
+        if not isinstance(expires, str) or not expires:
+            raise ValueError
+        datetime.fromisoformat(expires.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        errors.append("engineering_assumption.expires_at: expected an ISO-8601 timestamp")
+    if data.get("state") == "APPROVED" and not data.get("approved_by"):
+        errors.append("engineering_assumption.approved_by: required when APPROVED")
     return errors
 
 
@@ -212,24 +274,14 @@ def validate_bundle(data: Any) -> List[str]:
         errors.extend(f"bundle.engineering_assumptions[{index}]: {error}" for error in validate_ear(ear))
     if isinstance(phase, dict) and phase.get("mode") == "production":
         if ears:
-            errors.append("bundle: Production phase cannot depend on engineering assumptions")
+            errors.append("bundle: production phase cannot depend on engineering assumptions")
         for debt in debts.get("debts", []) if isinstance(debts, dict) else []:
             if isinstance(debt, dict) and debt.get("state") == "WAIVED_PROTOTYPE_ONLY":
-                errors.append(f"bundle: Production phase cannot use prototype-only waiver {debt.get('id')!r}")
-    known_debts = {debt.get("id") for debt in debts.get("debts", []) if isinstance(debt, dict)} if isinstance(debts, dict) else set()
-    for item in phase.get("work_items", []) if isinstance(phase, dict) else []:
-        if isinstance(item, dict):
-            for debt_id in item.get("debt_ids", []):
-                if debt_id not in known_debts:
-                    errors.append(f"bundle: work item {item.get('id')!r} references missing debt {debt_id!r}")
+                errors.append(f"bundle: production phase cannot use prototype-only waiver {debt.get('id')!r}")
     return errors
 
 
 VALIDATORS = {"phase": validate_phase, "debt": validate_debts, "artifact": validate_artifacts, "ear": validate_ear, "bundle": validate_bundle}
-
-
-def _load_json(path: str) -> Any:
-    return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 
 def _print_result(errors: List[str]) -> int:
@@ -238,14 +290,17 @@ def _print_result(errors: List[str]) -> int:
 
 
 def self_test() -> int:
-    phase = {"schema_version": "1.0", "phase_id": "assessment", "revision": 1, "mode": "production", "status": "COMPLETED", "result": "PASS_WITH_DEBT", "entry_criteria": ["baseline"], "exit_criteria": ["assessed"], "artifacts": {"consumed": ["hardware"], "produced": ["closure"], "closure": "closure.md"}, "work_items": [{"id": "lcd", "readiness": "BLOCKED_HARDWARE", "debt_ids": ["LCD-ID-01"]}], "requested_external_inputs": [], "resume_criteria": [], "successor_phase": "evidence-resolution", "reopen": None}
-    debts = {"schema_version": "1.0", "revision": 1, "debts": [{"id": "LCD-ID-01", "state": "WAIVED_PROTOTYPE_ONLY", "statement": "LCD identity unknown", "evidence_required": ["module identity"], "dependencies": [], "sources": [], "acceptance_record": None}]}
-    artifacts = {"schema_version": "1.0", "revision": 1, "artifacts": []}
-    valid_errors = validate_phase(phase)
-    invalid_errors = validate_bundle({"phase": phase, "evidence_debts": debts, "artifact_manifest": artifacts, "engineering_assumptions": []})
-    if valid_errors or not any("prototype-only waiver" in error for error in invalid_errors):
-        return _print_result(["self-test failed", *valid_errors, *invalid_errors])
-    print(json.dumps({"valid": True, "tests": 2}, indent=2))
+    phase = {
+        "schema_version": "2.0", "phase_id": "assessment", "revision": 1,
+        "mode": "prototype", "status": "COMPLETED", "result": "PASS_WITH_DEBT",
+        "entry_criteria": [], "completion_criteria": ["assessed"], "work_package_ids": [],
+        "artifacts": {}, "review_budget": {"max_rounds": 2, "exhausted_action": "CLOSE_WITH_DEBT"}, "reopen": None,
+    }
+    valid = validate_phase(phase)
+    invalid = validate_artifacts({"schema_version": "2.0", "revision": 1, "artifacts": [{"id": "x", "path": "../escape"}]})
+    if valid or not any("confined relative path" in error for error in invalid):
+        return _print_result(["self-test failed", *valid, *invalid])
+    print(json.dumps({"valid": True, "version": VERSION, "tests": 2}, indent=2))
     return 0
 
 
@@ -260,7 +315,7 @@ def main() -> int:
     if args.command == "self-test":
         return self_test()
     try:
-        data = _load_json(args.path)
+        data = json.loads(Path(args.path).read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         return _print_result([f"cannot load {args.path}: {exc}"])
     return _print_result(VALIDATORS[args.kind](data))

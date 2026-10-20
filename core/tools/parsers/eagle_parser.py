@@ -29,9 +29,9 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .netlist_parser import NetlistParser
+    from .netlist_parser import NetlistParser, validate_parsed_netlist
 except ImportError:
-    from netlist_parser import NetlistParser
+    from netlist_parser import NetlistParser, validate_parsed_netlist
 
 
 class EagleNetlistParser(NetlistParser):
@@ -99,7 +99,7 @@ class EagleNetlistParser(NetlistParser):
                 
                 result["nets"][net_name] = nodes
         
-        return result
+        return validate_parsed_netlist(result, "Eagle")
     
     def find_mcu(self, data: dict) -> dict | None:
         """

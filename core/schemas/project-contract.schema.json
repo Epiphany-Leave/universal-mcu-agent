@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/project-contract.schema.json",
+  "title": "Universal MCU Agent project contract v1",
+  "type": "object",
+  "required": ["schema_version", "project_id", "project_name", "revision", "layout", "platform", "protected_paths", "gates", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "project_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "project_name": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "layout": {
+      "type": "object",
+      "required": ["hardware", "software", "project", "main", "components"],
+      "properties": {
+        "hardware": {"$ref": "#/$defs/confinedPath"},
+        "software": {"$ref": "#/$defs/confinedPath"},
+        "project": {"$ref": "#/$defs/confinedPath"},
+        "main": {"$ref": "#/$defs/confinedPath"},
+        "components": {"$ref": "#/$defs/confinedPath"}
+      },
+      "additionalProperties": false
+    },
+    "platform": {
+      "type": "object",
+      "required": ["family", "chip"],
+      "properties": {
+        "family": {"type": ["string", "null"], "minLength": 1},
+        "chip": {"type": ["string", "null"], "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "protected_paths": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/confinedPath"},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "gates": {
+      "type": "object",
+      "required": ["implementation_required_roles"],
+      "properties": {
+        "implementation_required_roles": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "confinedPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+    }
+  },
+  "additionalProperties": false
+}

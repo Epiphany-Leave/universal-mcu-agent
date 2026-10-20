@@ -1,13 +1,13 @@
 ---
 name: requirements-analysis
 description: Analyze canonical requirement artifacts
-version: "2.0.0"
+version: "3.0.0"
 status: stable
 category: [requirements, documentation]
 mcu_support: [stm32, esp32, ch592, ti-c2000]
 requires: [requirements.primary]
 outputs: [requirements-structured, acceptance-tests]
-contract_version: "2.0"
+contract_version: "3.0"
 priority: 60
 ---
 

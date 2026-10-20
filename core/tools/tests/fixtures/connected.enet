@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "components": {
+    "uuid-mcu": {
+      "props": {
+        "Designator": "U1",
+        "DeviceName": "STM32G431CBU6",
+        "Value": "STM32G431",
+        "FootprintName": "LQFP-48"
+      },
+      "pinInfoMap": {
+        "1": {"name": "PA9/USART1_TX", "net": "DEBUG_TX"},
+        "2": {"name": "VSS", "net": "GND"}
+      }
+    },
+    "uuid-connector": {
+      "props": {
+        "Designator": "J1",
+        "DeviceName": "DEBUG_HEADER",
+        "Value": "Conn_01x02",
+        "FootprintName": "Header"
+      },
+      "pinInfoMap": {
+        "1": {"name": "TX", "net": "DEBUG_TX"},
+        "2": {"name": "GND", "net": "GND"}
+      }
+    }
+  }
+}

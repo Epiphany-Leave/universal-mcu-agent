@@ -7,14 +7,19 @@
   "properties": {
     "schema_version": {"const": "2.0"},
     "intent_id": {"type": "string", "minLength": 1},
-    "type": {"enum": ["implementation", "debug", "evidence", "review", "plan"]},
+    "revision": {"type": "integer", "minimum": 1},
+    "type": {"enum": ["project_setup", "implementation", "debug", "evidence", "review", "plan"]},
+    "requested_type": {"enum": ["project_setup", "implementation", "debug", "evidence", "review", "plan"]},
+    "project_state": {"enum": ["UNINITIALIZED", "PROJECT_INITIALIZED", "EVIDENCE_PENDING", "IMPLEMENTATION_ALLOWED", "INVALID"]},
     "request": {"type": "string", "minLength": 1},
     "scope": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
     "priority": {"enum": ["user_request", "dependency", "maintenance"]},
     "expansion": {"enum": ["register_only", "dependency_only", "user_approved"]},
     "mode": {"enum": ["production", "prototype", "exploration"]},
     "authority": {"type": "string", "minLength": 1},
-    "created_at": {"type": "string", "minLength": 1}
+    "created_at": {"type": "string", "minLength": 1},
+    "claim": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": true}]},
+    "audit": {"oneOf": [{"type": "object", "additionalProperties": true}, {"type": "array", "items": {"type": "object", "additionalProperties": true}}]}
   },
   "additionalProperties": false
 }

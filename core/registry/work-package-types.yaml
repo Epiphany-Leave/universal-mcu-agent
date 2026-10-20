@@ -1,9 +1,15 @@
 schema_version: "2.0"
 work_package_types:
+  PROJECT_SETUP:
+    handler: workflows/project-setup.md
+    verification_tiers: [analysis]
   UI_FEATURE:
     handler: runtime.work_package_factory
     verification_tiers: [host, build, target]
   SENSOR_DRIVER:
+    handler: runtime.work_package_factory
+    verification_tiers: [host, build, target]
+  CAMERA_DRIVER:
     handler: runtime.work_package_factory
     verification_tiers: [host, build, target]
   SCHEDULER_OPTIMIZATION:
@@ -17,4 +23,7 @@ work_package_types:
     verification_tiers: [build, target]
   VALIDATION:
     handler: workflows/build.md
+    verification_tiers: [analysis, host, build, target]
+  IMPLEMENTATION:
+    handler: runtime.work_package_factory
     verification_tiers: [host, build, target]

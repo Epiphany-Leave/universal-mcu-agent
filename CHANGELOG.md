@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.8.0 (2026-08-30)
+
+### Fail-closed project and workflow governance
+
+- Added tracked `project-contract.json`, derived project status, `PROJECT_SETUP` routing, platform derivation, and implementation Artifact gates. Uninitialized products can no longer produce a claimable firmware Task.
+- Added explicit `artifact register/list/resolve` CLI operations with path confinement, SHA-256, manifest locking, CAS, supersession and acceptance metadata.
+- Added machine-readable workflow descriptors, packaged handler Markdown, policy locks and workflow digests frozen into Tasks and claims.
+- Claim now revalidates contract, workflow, state, platform and canonical input hashes before entering `IMPLEMENTING`; historical v0.7 packages remain readable without silently receiving governance metadata.
+
+### Isolated execution, promotion and CI
+
+- Added governed `claim-task --workspace`, whole-worktree scope detection, canonical-tree drift rejection, `promote-task`, tracked promotion audits and commit trailers.
+- Added strict repository verification for contract/policy/Artifact/audit/base/patch/trailer/target evidence checks and a reusable trusted-wheel CI workflow.
+- Added a single Pi `mcu-agent` Skill, `host-run`, installer-managed Skill deployment and idempotent `.gitignore` state/workspace exclusions.
+- Added explicit existing-project migration proposal/apply commands; candidate roots are never selected or moved without approval.
+
+### Release and compatibility
+
+- Packaged workflow Markdown and Pi Skill resources in the wheel, expanded Linux/Windows installer preservation, and added v0.8 migration/CI documentation.
+- Added governance, workspace/promotion, direct-bypass and CI verifier regression tests while preserving optional MCP and v0.7 lifecycle audit compatibility.
+
+## 0.7.0 (2026-08-26)
+
+### Unified entry, safe migration, and release engineering
+
+- Unified pi and Codex on `adapters/common/runtime-entry.md` and the CLI-only session/plan/claim/finalize/abandon/attest lifecycle.
+- Added pi support to both installers; `all` now deploys the managed runtime once and pi/Codex share one idempotent `AGENTS.md` managed block.
+- Added non-destructive installer boundaries, timestamped update backups, legacy runtime-state migration with revision conflict handling, migration reports, and pre-version smoke tests.
+- Preserved `state/`, `custom/`, `config.yaml`, `artifact-manifest.yaml`, and `knowledge/project/` even under force updates.
+- Corrected managed knowledge deployment to `knowledge/platform/<platform>` and forced knowledge release metadata refresh.
+- Added Python packaging metadata, dependency extras, installer migration tests, and Ubuntu/Windows CI across Python 3.10 and 3.12.
+- Added the v0.7 migration guide; pre-v0.7 projects must not use their old updater or force mode.
+
+### Durable lifecycle and verification
+
+- Moved all mutable runtime records to `.mcu-agent/state/` and added confined, revisioned, lock-protected atomic persistence.
+- Added canonical ID-based `plan`, `claim-task`, `finalize-task`, `abandon-task`, and `attest-target` flows with opaque claim IDs, restart recovery, immutable planned roots, and one active claim per physical project root.
+- Added real SHA-256 project snapshots so unreported additions, modifications, deletions, and out-of-scope edits are detected before verification.
+- Added structured `analysis`, `host`, `build`, and `target` verification semantics. Missing verifiers remain `VALIDATING`; build can no longer satisfy target.
+- Replaced default shell execution with OS-specific argv profiles and an audited one-shot override for legacy shell commands.
+- Made generated Artifact updates role/path constrained, revisioned, schema-checked, and rollback-transactionally committed with Task state only after successful verification; target evidence hashes are revalidated at finalize.
+
+### Contracts and optional integrations
+
+- Corrected implementation/debug/review/evidence routing and added read-only review Tasks, Camera schema support, scoped input roles, and declared evidence outputs.
+- Fixed capability precedence, fail-closed EAR expiry, state-preserving regating, platform adapter loading, Windows/WSL path conversion, and project path confinement.
+- Marked the MCU MCP server optional/experimental, confined caller paths to an explicit product root, and routed lifecycle operations through the shared runtime service.
+- Replaced KiCad regex parsing with an S-expression parser, repaired normalized ENET extraction, and made Eagle/Cadence/Altium format detection content-aware and diagnosable.
+
 ## 0.6.0 (2026-08-01)
 
 ### Runtime architecture upgrade

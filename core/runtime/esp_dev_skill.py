@@ -40,6 +40,8 @@ class EspDevSkillRouter:
         (re.compile(r"wifi|wi-fi|无线", re.I), "esp-idf", ("wifi_sta",)),
         (re.compile(r"arduino", re.I), "arduino-esp32", ()),
         (re.compile(r"esp8266", re.I), "ESP8266_RTOS_SDK", ()),
+        (re.compile(r"camera|摄像头|ov3660|ov2640|ov5640|image|vision|取图", re.I), "esp-video-components", ()),
+        (re.compile(r"audio|音频|codec|i2s|播放|录音", re.I), "esp-adf", ()),
     )
 
     def __init__(self, skill_root: str | Path | None = None, *, product_root: str | Path | None = None):

@@ -1,23 +1,45 @@
-# Universal MCU Agent v0.6 Runtime Entry
+# Universal MCU Agent Runtime Entry
 
-All MCU requests must enter the shared runtime before a workflow handler is selected:
+All MCU work uses the installed CLI lifecycle. Host instructions and Skills are guidance; project contract, workflow policy, claim scope, promotion and CI are authoritative.
 
-At the start of a Codex session, run:
-
-```bash
-python .mcu-agent/runtime/cli.py session-bootstrap --agent codex --mode production .
-```
+From the product root, bootstrap each session and retain `session_id`:
 
 ```bash
-python .mcu-agent/runtime/cli.py plan "<user request>" --mode <production|prototype|exploration>
+python .mcu-agent/runtime/cli.py session-bootstrap --agent auto --product-root .
 ```
 
-Execute the returned READY tasks in user-request priority order. Use `.mcu-agent/workflows/` only as task handlers. Never let a handler replace the current Work Package, edit lifecycle state directly, or scan for artifacts.
+Plan every exact user request:
 
-For a coding Task, prepare the model context with `runtime/cli.py prepare-task`, make the edits inside the returned `allowed_roots`, then submit the model result with `runtime/cli.py finalize-task`. A Task is not `DONE` until build/test verification is recorded.
+```bash
+python .mcu-agent/runtime/cli.py plan "<user request>" --product-root . --session-id <session-id>
+```
 
-Resolve inputs through `.mcu-agent/artifact-manifest.yaml` with the Artifact Resolver. Apply state changes through the runtime transition engine. A `BLOCKED_*` task does not block unrelated READY tasks. `WAITING_EXTERNAL` remains scoped to the affected task or evidence-resolution Work Package.
+An uninitialized product can return only `PROJECT_SETUP`. A BLOCKED Task must not be claimed. Register explicit inputs only through:
 
-For ESP-IDF builds, run the platform contract and require expected components to have `included: true`.
+```bash
+python .mcu-agent/runtime/cli.py artifact register . \
+  --role <canonical-role> --path <product-relative-path> --scope <scope>
+```
 
-When an `esp-dev-skill` checkout is available, pass it to `prepare-task --esp-skill-root <path>` (or place it at `.mcu-agent/skills/esp-dev-skill`). The skill supplies read-only recipes and API references; it does not widen Task scope or change lifecycle state.
+Claim a READY Task in an isolated worktree and retain the opaque `claim_id`:
+
+```bash
+python .mcu-agent/runtime/cli.py claim-task . <work-package-id> <task-id> \
+  --session-id <session-id> --workspace
+```
+
+Use only the returned workspace, allowed roots, Artifact IDs/hashes and handler path/digest. After real verification:
+
+```bash
+python .mcu-agent/runtime/cli.py finalize-task . <work-package-id> <task-id> \
+  <result.json> --claim-id <claim-id>
+```
+
+A DONE workspace is not canonical until promotion:
+
+```bash
+python .mcu-agent/runtime/cli.py promote-task . <work-package-id> <task-id> \
+  --claim-id <claim-id>
+```
+
+Use the returned commit trailers. If work cannot complete, use `abandon-task`; target evidence must use `attest-target` and cannot be fabricated. Never edit `.mcu-agent/state`, contract, policy lock, manifest or audit files directly.

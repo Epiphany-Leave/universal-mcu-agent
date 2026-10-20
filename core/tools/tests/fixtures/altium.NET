@@ -1,0 +1,14 @@
+[
+(
+  U1 LQFP48 STM32F103C8T6 PA9 PA10
+)
+(
+  J1 HEADER CONN TX RX
+)
+(
+  UART_TX U1-1 J1-1
+)
+(
+  UART_RX U1-2 J1-2
+)
+]

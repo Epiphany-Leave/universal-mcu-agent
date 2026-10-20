@@ -1,61 +1,20 @@
-# MCU Agent MCP Server
+# MCU Agent MCP Server（可选 / 实验性）
 
-将 core/tools 封装为 MCP (Model Context Protocol) 工具，供任何支持 MCP 的 Agent 调用。
+此目录把部分 `core/tools` 与 runtime API 暴露为 MCP 工具。MCP 传输层是 **optional / experimental**，不是 lifecycle 的权威实现；没有安装 `mcp` 时，core parser 与路径 helper 仍可独立导入和测试。
 
-## 安装
+## 安装与启动
 
-```bash
-pip install -r requirements.txt
-```
-
-## 启动
+按宿主环境单独安装 MCP Python 包，然后启动：
 
 ```bash
-# MCP 服务器模式（供 Agent 连接）
 python mcu_server.py
-
-# 测试模式
-python mcu_server.py --test <project_path>
+python mcu_server.py --test <product_root>
 ```
-
-## 可用工具
-
-| 工具 | 描述 |
-|------|------|
-| `parse_ioc` | 解析 CubeMX .ioc 文件 |
-| `parse_netlist` | 解析网表文件（Altium/KiCad/Eagle/ENET） |
-| `collect_docs` | 收集项目文档 |
-| `extract_pdf` | 提取 PDF 文本 |
-| `identify_chips` | 识别芯片和模块 |
-| `generate_schematic` | 生成硬件接口文件 |
-| `generate_datasheet` | 生成芯片手册文件 |
-| `generate_requirements` | 生成需求文件 |
-| `get_knowledge` | 获取 MCU 知识库 |
-| `get_workflow` | 获取工作流定义 |
-| `list_tools` | 列出所有工具 |
-| `plan_work` | 生成 Intent、Work Package 和局部门控 Task |
-| `review_evidence` | 应用 review budget 并去重相同 evidence 输入 |
-| `resolve_artifact` | 从 canonical manifest 按 role 解析输入 |
-| `validate_esp_idf` | 验证 ESP-IDF 工程和 component 实际纳入构建 |
-| `transition_state` | 执行受控 Phase/Work Package/Task 状态转换 |
-| `prepare_task` | 为模型准备受限 Task 上下文 |
-| `finalize_task` | 验证模型修改并推进 Task 状态 |
-| `route_esp_skill` | 将可选 esp-dev-skill 路由为受限 ESP recipe/API 参考 |
-| `session_bootstrap` | 建立宿主 Agent 会话握手并记录当前项目会话 |
-| `search_project_memory` | 检索当前项目范围内的已记录经验 |
-| `approve_project_memory` | 人工批准一条项目记忆进入项目知识状态 |
-| `promote_project_memory` | 将已批准的项目记忆提升为公共或平台知识 |
-
-项目记忆默认写入项目的 `.mcu-agent/runtime/memories/`，并带有来源、置信度、验证信息和项目范围。`search_project_memory` 只提供上下文，不能解除 evidence 或 capability gate；只有人工批准后的记忆才允许通过 `promote_project_memory` 写入公共知识目录。
-
-## MCP 配置
-
-在 Agent 的 MCP 配置中添加：
 
 ```json
 {
   "mcpServers": {
-    "mcu-agent": {
+    "mcu-agent-experimental": {
       "command": "python",
       "args": ["<path>/mcp-server/mcu_server.py"],
       "env": {}
@@ -64,10 +23,40 @@ python mcu_server.py --test <project_path>
 }
 ```
 
-## 支持的 Agent
+## 路径安全契约
 
-任何支持 MCP 协议的 Agent 都可以使用：
-- Claude Code (VS Code)
-- Cursor
-- Continue
-- 其他 MCP 兼容 Agent
+所有接收调用方路径的工具都要求显式 `product_root`：
+
+- `product_root` 是信任边界，可以是绝对路径；
+- `file_path`、`project_root`、`config_path`、`compile_commands`、`skill_root` 等必须是相对 `product_root` 的路径；
+- 绝对子路径、任何 `..`、不存在的输入以及解析后逃出根目录的 symlink 都会被拒绝；
+- parser 失败会返回带异常类型和原因的 `error`，不会把空连接伪装为成功。
+
+例如：
+
+```text
+parse_netlist(product_root="/work/product", file_path="Hardware/board.net")
+extract_pdf(product_root="/work/product", file_path="Evidence/mcu.pdf")
+```
+
+## 工具状态
+
+| 工具 | 状态 | 描述 |
+|------|------|------|
+| `parse_ioc` | experimental | 解析根内 CubeMX `.ioc` |
+| `parse_netlist` | experimental | 自动检测并解析 ENET、KiCad、Eagle、Cadence、Altium/OrCAD 网表 |
+| `extract_pdf` | experimental | 提取根内 PDF 文本 |
+| `collect_docs` / `identify_chips` | disabled | 禁止 project-wide 扫描；改用 manifest 显式 artifact |
+| `generate_schematic` / `generate_datasheet` / `generate_requirements` | disabled | 改用 runtime work-package / Task handler |
+| `resolve_artifact` | experimental | 从 canonical manifest 按 role 解析输入 |
+| `validate_esp_idf` | experimental | 验证根内 ESP-IDF 工程 |
+| `review_evidence` | experimental | 计算证据审查预算，不直接写 lifecycle state |
+| `plan_work` | experimental façade | 薄调用 `RuntimeEngine.plan`，随后由 `LifecycleService.persist_plan` 持久化；不在 MCP 内独立门控 |
+| `claim_task` | experimental façade | 按 Work Package / Task / session ID 薄调用 `LifecycleService.claim_task`；governed read-write Task 必须 `workspace=true` |
+| `finalize_task` | experimental façade | 必须提供 `product_root`、Work Package / Task / session / claim revision，薄调用 `LifecycleService.finalize_task`；旧 task/context JSON finalize 不再暴露 |
+| `promote_task` | experimental façade | 晋升已验证的 claim workspace；生成 tracked audit 和 commit trailers |
+| `route_esp_skill` | experimental | 路由根内可选 skill |
+| `session_bootstrap` / project memory tools | experimental | 薄调用对应 runtime service |
+| `get_knowledge` / `get_workflow` / `list_tools` | experimental | 读取安装包内的固定资源或列出工具 |
+
+MCP 不暴露文件型 `prepare_task` 或调用方 JSON 的直接 `transition_state`。`plan_work`、`claim_task`、`finalize_task`、`promote_task` 共享 runtime 的 durable lifecycle service；project contract、workflow digest、gate、状态转换、真实变更扫描与输出验证均由 runtime 实现所有，MCP 层不复制另一套规则。

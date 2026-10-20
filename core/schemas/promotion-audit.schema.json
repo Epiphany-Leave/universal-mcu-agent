@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/promotion-audit.schema.json",
+  "title": "Universal MCU Agent promotion audit v1",
+  "type": "object",
+  "required": ["schema_version", "audit_id", "claim_id", "work_package_id", "task_id", "base_commit", "patch_sha256", "workflow_digest", "project_contract_digest", "verification", "verification_tier", "verification_profile", "changed_files", "allowed_paths", "required_output_roles", "artifact_manifest_before_sha256", "artifact_manifest_after_sha256", "promoted_at", "trailers"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "audit_id": {"type": "string", "minLength": 1},
+    "claim_id": {"type": "string", "minLength": 1},
+    "work_package_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "base_commit": {"type": "string", "pattern": "^[a-fA-F0-9]{40,64}$"},
+    "patch_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "workflow_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "project_contract_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "verification": {"type": "object", "additionalProperties": true},
+    "verification_tier": {"enum": ["analysis", "host", "build", "target"]},
+    "verification_profile": {"type": "string", "minLength": 1},
+    "changed_files": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "allowed_paths": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1, "uniqueItems": true},
+    "required_output_roles": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "output_artifact_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "artifact_manifest_before_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "artifact_manifest_after_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+    "promoted_at": {"type": "string", "format": "date-time"},
+    "trailers": {
+      "type": "object",
+      "required": ["MCU-Claim", "MCU-Policy", "MCU-Verification"],
+      "properties": {
+        "MCU-Claim": {"type": "string"},
+        "MCU-Policy": {"type": "string"},
+        "MCU-Verification": {"type": "string"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

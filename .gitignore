@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and packaging
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Local agent/editor state
+.codegraph/
+.mcp.json
+*.local.json
+.vscode/*.local.json
+
+# OS/editor caches
+.DS_Store
+Thumbs.db
+*.swp
+*~

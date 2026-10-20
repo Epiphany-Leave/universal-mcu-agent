@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/project-migration-proposal.schema.json",
+  "title": "Universal MCU Agent project migration proposal v1",
+  "type": "object",
+  "required": ["schema_version", "proposal_id", "product_root", "project_name", "canonical_layout", "candidates", "selected_project_root", "platform", "chip", "requires_user_approval", "created_at"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "product_root": {"type": "string", "minLength": 1},
+    "project_name": {"type": "string", "minLength": 1},
+    "canonical_layout": {"type": "object", "additionalProperties": {"type": "string"}},
+    "candidates": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+    "selected_project_root": {"type": ["string", "null"]},
+    "platform": {"type": ["string", "null"]},
+    "chip": {"type": ["string", "null"]},
+    "requires_user_approval": {"const": true},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

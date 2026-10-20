@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-MCU Agent MCP Server
+MCU Agent MCP Server (optional / experimental)
 
-将 core/tools 封装为 MCP 工具，供任何支持 MCP 的 Agent 调用。
+将 core/tools 封装为可选、实验性的 MCP 工具；runtime API 仍是权威入口。
 
 用法:
   python mcu_server.py                    # 启动 MCP 服务器
@@ -31,83 +31,100 @@ except ImportError:
 
 try:
     from mcp.server.fastmcp import FastMCP
+    HAS_MCP = True
 except ImportError:
-    print("请安装 MCP: pip install mcp")
-    print("或: pip install -r requirements.txt")
-    sys.exit(1)
+    FastMCP = None
+    HAS_MCP = False
 
-# ── 创建 MCP 服务器 ──────────────────────────────────────────
+from parsers.path_security import ProductPathError, resolve_product_path
 
-mcp = FastMCP("MCU Agent")
+
+class _UnavailableMCP:
+    """Keep path/parser helpers importable when the optional MCP extra is absent."""
+
+    def tool(self):
+        return lambda function: function
+
+    def run(self):
+        raise RuntimeError("optional MCP support is not installed; install the 'mcp' package")
+
+
+# This transport is explicitly optional/experimental; core parser/runtime imports
+# do not depend on the MCP package.
+mcp = FastMCP("MCU Agent (optional/experimental)") if HAS_MCP else _UnavailableMCP()
+
+
+def _product_root(product_root: str) -> Path:
+    return resolve_product_path(product_root, ".", kind="directory")
+
+
+def _json_error(exc: Exception) -> str:
+    return json.dumps({"error": f"{type(exc).__name__}: {exc}"}, ensure_ascii=False)
+
 
 # ── 工具实现 ─────────────────────────────────────────────────
 
 @mcp.tool()
-def parse_ioc(file_path: str) -> str:
-    """解析 CubeMX .ioc 文件，返回引脚配置 JSON。
-
-    Args:
-        file_path: .ioc 文件的绝对路径
-    """
+def parse_ioc(product_root: str, file_path: str) -> str:
+    """解析 product_root 内的 CubeMX .ioc；file_path 必须是相对路径。"""
     from parsers.ioc_parser import parse_ioc_file, ioc_to_hardware_interfaces
-    result = parse_ioc_file(file_path)
-    if result:
-        interfaces = ioc_to_hardware_interfaces(result)
-        return json.dumps(interfaces, ensure_ascii=False, indent=2)
-    return json.dumps({"error": "解析失败"}, ensure_ascii=False)
+    try:
+        path = resolve_product_path(product_root, file_path, kind="file")
+        result = parse_ioc_file(path)
+        if not result:
+            raise ValueError("IOC parser returned no data")
+        return json.dumps(ioc_to_hardware_interfaces(result), ensure_ascii=False, indent=2)
+    except (OSError, UnicodeError, ValueError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
-def parse_netlist(file_path: str) -> str:
-    """解析网表文件（自动检测格式），返回接口信息 JSON。
-
-    支持格式: Altium (.SchDoc), KiCad (.kicad_sch), Eagle (.sch), ENET (.enet)
-
-    Args:
-        file_path: 网表文件的绝对路径
-    """
-    from parsers.netlist_parser import detect_netlist_format, get_parser
-    path = Path(file_path)
-    format_type = detect_netlist_format(path)
-    parser = get_parser(format_type)
-    if parser is None:
-        return json.dumps({"error": f"不支持的格式: {format_type}"}, ensure_ascii=False)
-    parsed = parser.parse(path)
-    result = {
-        "file": file_path,
-        "format": format_type,
-        "mcu": parser.find_mcu(parsed),
-        "interfaces": parser.extract_interfaces(parsed),
-    }
-    return json.dumps(result, ensure_ascii=False, indent=2)
-
-
-@mcp.tool()
-def collect_docs(project_path: str) -> str:
-    """收集项目目录下的所有文档文本内容。
-
-    Args:
-        project_path: 项目根目录路径
-    """
-    return json.dumps({
-        "error": "project-wide document scanning is disabled in v0.6",
-        "next": "register explicit inputs in artifact-manifest.yaml and call resolve_artifact",
-        "project_path": project_path,
-    }, ensure_ascii=False)
+def parse_netlist(product_root: str, file_path: str) -> str:
+    """解析 product_root 内的 EDA 网表；file_path 必须是相对路径。"""
+    from parsers.netlist_parser import detect_netlist_format, get_parser, validate_parsed_netlist
+    try:
+        path = resolve_product_path(product_root, file_path, kind="file")
+        format_type = detect_netlist_format(path)
+        parser = get_parser(format_type)
+        if parser is None:
+            raise ValueError(f"no registered parser for detected format: {format_type}")
+        parsed = validate_parsed_netlist(parser.parse(path), format_type)
+        result = {
+            "file": file_path,
+            "format": format_type,
+            "mcu": parser.find_mcu(parsed),
+            "interfaces": parser.extract_interfaces(parsed),
+            "components_count": len(parsed["components"]),
+            "nets_count": len(parsed["nets"]),
+        }
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except (OSError, UnicodeError, ValueError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
-def extract_pdf(file_path: str, keywords: str = "") -> str:
-    """提取 PDF 文本内容，可按关键词过滤。
+def collect_docs(product_root: str) -> str:
+    """已禁用的扫描器；product_root 仍须是显式、有效的产品根。"""
+    try:
+        root = _product_root(product_root)
+        return json.dumps({
+            "error": "project-wide document scanning is disabled",
+            "next": "register explicit inputs in artifact-manifest.yaml and call resolve_artifact",
+            "product_root": str(root),
+        }, ensure_ascii=False)
+    except ValueError as exc:
+        return _json_error(exc)
 
-    Args:
-        file_path: PDF 文件的绝对路径
-        keywords: 可选，逗号分隔的关键词列表，如 "pin,register,voltage"
-    """
+
+@mcp.tool()
+def extract_pdf(product_root: str, file_path: str, keywords: str = "") -> str:
+    """提取 product_root 内的 PDF；file_path 必须是相对路径。"""
+    document = None
     try:
         import fitz
-        terms = [term for term in keywords.split(",") if term] or ["pin", "register", "voltage", "current"]
-        document = fitz.open(file_path)
+        path = resolve_product_path(product_root, file_path, kind="file")
+        terms = [term.strip() for term in keywords.split(",") if term.strip()] or ["pin", "register", "voltage", "current"]
+        document = fitz.open(path)
         pages = []
         for page in document:
             content = page.get_text()
@@ -116,79 +133,91 @@ def extract_pdf(file_path: str, keywords: str = "") -> str:
             if len(pages) >= 20:
                 break
         result = {"file": file_path, "total_pages": document.page_count, "matched_pages": len(pages), "pages": pages}
-        document.close()
         return json.dumps(result, ensure_ascii=False, indent=2)
     except Exception as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+        return _json_error(exc)
+    finally:
+        if document is not None:
+            document.close()
 
 
 @mcp.tool()
-def identify_chips(project_path: str) -> str:
-    """从项目文件中识别芯片和模块。
-
-    Args:
-        project_path: 项目根目录路径
-    """
-    return json.dumps({
-        "error": "project-wide chip scanning is disabled in v0.6",
-        "next": "resolve an explicit schematic/netlist artifact and call parse_netlist",
-        "project_path": project_path,
-    }, ensure_ascii=False)
-
-
-@mcp.tool()
-def generate_schematic(project_path: str) -> str:
-    """解析硬件文件，生成 hardware.json 和硬件接口速查.md。
-
-    Args:
-        project_path: 项目根目录路径
-    """
-    return json.dumps({
-        "error": "scanner-based generation is disabled in v0.6",
-        "next": "resolve hardware.schematic.primary, then run the schematic Task handler",
-        "project_path": project_path,
-    }, ensure_ascii=False)
+def identify_chips(product_root: str) -> str:
+    """已禁用的扫描器；使用显式 product_root。"""
+    try:
+        return json.dumps({
+            "error": "project-wide chip scanning is disabled",
+            "next": "resolve an explicit schematic/netlist artifact and call parse_netlist",
+            "product_root": str(_product_root(product_root)),
+        }, ensure_ascii=False)
+    except ValueError as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
-def generate_datasheet(project_path: str) -> str:
-    """解析芯片手册 PDF，生成 datasheet.json 和芯片手册提取.md。
-
-    Args:
-        project_path: 项目根目录路径
-    """
-    return json.dumps({
-        "error": "scanner-based generation is disabled in v0.6",
-        "next": "resolve device.<identity>.datasheet, then run the datasheet Task handler",
-        "project_path": project_path,
-    }, ensure_ascii=False)
+def generate_schematic(product_root: str) -> str:
+    """已禁用的扫描式生成器；使用 runtime Task handler。"""
+    try:
+        return json.dumps({
+            "error": "scanner-based generation is disabled",
+            "next": "resolve hardware.schematic.primary, then run the schematic Task handler",
+            "product_root": str(_product_root(product_root)),
+        }, ensure_ascii=False)
+    except ValueError as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
-def generate_requirements(project_path: str) -> str:
-    """分析项目文档，生成 requirements.json 和产品功能说明.md。
+def generate_datasheet(product_root: str) -> str:
+    """已禁用的扫描式生成器；使用 runtime Task handler。"""
+    try:
+        return json.dumps({
+            "error": "scanner-based generation is disabled",
+            "next": "resolve device.<identity>.datasheet, then run the datasheet Task handler",
+            "product_root": str(_product_root(product_root)),
+        }, ensure_ascii=False)
+    except ValueError as exc:
+        return _json_error(exc)
 
-    Args:
-        project_path: 项目根目录路径
-    """
-    return json.dumps({
-        "error": "requirements generation is a runtime work-package handler, not a standalone scanner",
-        "next": "call plan_work and resolve requirements.primary from artifact-manifest.yaml",
-        "project_path": project_path,
-    }, ensure_ascii=False)
+
+@mcp.tool()
+def generate_requirements(product_root: str) -> str:
+    """已弃用：需求生成由 runtime work-package handler 所有。"""
+    try:
+        return json.dumps({
+            "error": "requirements generation is a runtime work-package handler, not a standalone scanner",
+            "next": "call plan_work and resolve requirements.primary from artifact-manifest.yaml",
+            "product_root": str(_product_root(product_root)),
+        }, ensure_ascii=False)
+    except ValueError as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
 def plan_work(
     user_input: str,
+    product_root: str,
     mode: str = "production",
     platform: str = "",
     capabilities_json: str = "[]",
     assumptions_json: str = "[]",
+    config_path: str = "",
+    project_root: str = ".",
+    session_id: str = "",
 ) -> str:
-    """Classify human intent and return capability-gated work packages."""
+    """Thin-call the runtime planner and persist through LifecycleService."""
     from runtime.engine import RuntimeEngine
+    from runtime.lifecycle_service import LifecycleService
+    from runtime.state_store import StateStore
     try:
+        root = _product_root(product_root)
+        project = resolve_product_path(root, project_root, kind="directory")
+        default_config = root / ".mcu-agent" / "config.yaml"
+        config = (
+            resolve_product_path(root, config_path, kind="file")
+            if config_path
+            else default_config if default_config.is_file() else None
+        )
         payload = json.loads(capabilities_json)
         capabilities = payload.get("capabilities", payload) if isinstance(payload, dict) else payload
         assumption_payload = json.loads(assumptions_json)
@@ -199,10 +228,18 @@ def plan_work(
             platform=platform or None,
             capabilities=capabilities,
             assumptions=assumptions,
+            config_path=str(config) if config else None,
+            capability_store=str(StateStore(root).root / "capabilities.json"),
+            project_root=str(project),
+            product_root=str(root),
+        )
+        effective_project = Path(result.get("project_root") or project).resolve()
+        result = LifecycleService(root, config_path=config).persist_plan(
+            result, project_root=effective_project, session_id=session_id or None
         )
         return json.dumps(result, ensure_ascii=False, indent=2)
     except (ValueError, json.JSONDecodeError) as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+        return _json_error(exc)
 
 
 @mcp.tool()
@@ -225,113 +262,117 @@ def resolve_artifact(product_root: str, role: str, scope: str = "product") -> st
     """Resolve one CURRENT artifact from the canonical manifest."""
     from runtime.artifact_resolver import ArtifactManifestError, ArtifactResolver
     try:
-        result = ArtifactResolver(product_root).resolve(role, scope=scope)
+        result = ArtifactResolver(_product_root(product_root)).resolve(role, scope=scope)
         return json.dumps(result, ensure_ascii=False, indent=2)
-    except ArtifactManifestError as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+    except (ArtifactManifestError, ProductPathError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
 def validate_esp_idf(
-    project_root: str,
+    product_root: str,
+    project_root: str = ".",
     compile_commands: str = "",
     build_succeeded: bool = False,
     expected_components_json: str = "[]",
 ) -> str:
-    """Validate ESP-IDF project layout and actual component inclusion."""
+    """Validate a relative ESP-IDF project confined to product_root."""
     from runtime.platforms.esp_idf import EspIdfAdapter
-    path = Path(compile_commands) if compile_commands else None
-    result = EspIdfAdapter().validate(
-        Path(project_root),
-        compile_commands=path,
-        build_succeeded=True if build_succeeded else None,
-        expected_components=json.loads(expected_components_json),
-    )
-    return json.dumps(result, ensure_ascii=False, indent=2)
-
-
-@mcp.tool()
-def transition_state(kind: str, record_json: str, target: str, reopen_json: str = "") -> str:
-    """Apply a validated phase, Work Package, or Task transition."""
-    from runtime.transition_engine import TransitionEngine, TransitionError
     try:
-        record = json.loads(record_json)
-        reopen = json.loads(reopen_json) if reopen_json else None
-        result = TransitionEngine().transition(kind, record, target, reopen=reopen)
-        return json.dumps(result, ensure_ascii=False, indent=2)
-    except (json.JSONDecodeError, TransitionError) as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
-
-
-@mcp.tool()
-def prepare_task(
-    task_json: str,
-    request: str,
-    mode: str,
-    project_root: str,
-    product_root: str = "",
-    skill_root: str = "",
-    platform: str = "",
-) -> str:
-    """Prepare bounded context for a model to implement one Task."""
-    from runtime.task_executor import TaskExecutor, TaskExecutionError
-    try:
-        task = json.loads(task_json)
-        product = product_root or project_root
-        resolver = None
-        if task.get("input_roles"):
-            from runtime.artifact_resolver import ArtifactResolver
-            resolver = ArtifactResolver(product)
-        context = TaskExecutor().prepare(
-            task,
-            request=request,
-            mode=mode,
-            project_root=project_root,
-            product_root=product,
-            manifest=resolver,
-            skill_root=skill_root or None,
-            platform=platform or None,
+        project = resolve_product_path(product_root, project_root, kind="directory")
+        commands = resolve_product_path(product_root, compile_commands, kind="file") if compile_commands else None
+        result = EspIdfAdapter().validate(
+            project,
+            compile_commands=commands,
+            build_succeeded=True if build_succeeded else None,
+            expected_components=json.loads(expected_components_json),
         )
-        return json.dumps(context, ensure_ascii=False, indent=2)
-    except (json.JSONDecodeError, TaskExecutionError) as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except (ValueError, json.JSONDecodeError) as exc:
+        return _json_error(exc)
+
+
+@mcp.tool()
+def claim_task(
+    product_root: str,
+    work_package_id: str,
+    task_id: str,
+    session_id: str,
+    project_root: str = "",
+    expected_revision: int = -1,
+    config_path: str = "",
+    workspace: bool = False,
+) -> str:
+    """Atomically claim a persisted Task through LifecycleService."""
+    from runtime.lifecycle_service import LifecycleError, LifecycleService
+    try:
+        root = _product_root(product_root)
+        project = resolve_product_path(root, project_root, kind="directory") if project_root else None
+        config = resolve_product_path(root, config_path, kind="file") if config_path else None
+        result = LifecycleService(root, config_path=config).claim_task(
+            work_package_id,
+            task_id,
+            session_id=session_id,
+            project_root=project,
+            expected_revision=None if expected_revision < 0 else expected_revision,
+            workspace=workspace,
+        )
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except (LifecycleError, ProductPathError, ValueError) as exc:
+        return _json_error(exc)
+
+
+@mcp.tool()
+def promote_task(product_root: str, work_package_id: str, task_id: str, claim_id: str) -> str:
+    """Promote one finalized governed claim workspace."""
+    from runtime.lifecycle_service import LifecycleError, LifecycleService
+    try:
+        result = LifecycleService(_product_root(product_root)).promote_task(
+            work_package_id, task_id, claim_id=claim_id,
+        )
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except (LifecycleError, ProductPathError, ValueError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
 def route_esp_skill(
     request: str,
-    product_root: str = "",
+    product_root: str,
     skill_root: str = "",
     platform: str = "",
 ) -> str:
-    """Route an optional esp-dev-skill package to bounded reference files."""
+    """Route an optional skill directory confined to product_root."""
     from runtime.esp_dev_skill import EspDevSkillError, EspDevSkillRouter
     try:
-        result = EspDevSkillRouter(skill_root or None, product_root=product_root or None).route(
-            request, platform=platform or None
-        )
+        product = _product_root(product_root)
+        skill = resolve_product_path(product, skill_root, kind="directory") if skill_root else None
+        result = EspDevSkillRouter(skill, product_root=product).route(request, platform=platform or None)
         return json.dumps(result, ensure_ascii=False, indent=2)
-    except EspDevSkillError as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+    except (EspDevSkillError, ProductPathError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
-def session_bootstrap(product_root: str, agent: str, mode: str = "production") -> str:
+def session_bootstrap(product_root: str, agent: str = "auto", mode: str = "production") -> str:
     """Validate the host entry file and record a session runtime handshake."""
     from runtime.session_bootstrap import SessionBootstrap, SessionBootstrapError
     try:
-        result = SessionBootstrap().start(product_root, agent=agent, mode=mode)
+        result = SessionBootstrap().start(_product_root(product_root), agent=agent, mode=mode)
         return json.dumps(result, ensure_ascii=False, indent=2)
-    except SessionBootstrapError as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+    except (SessionBootstrapError, ProductPathError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
 def search_project_memory(product_root: str, query: str, platform: str = "", limit: int = 5) -> str:
     """Search project-scoped memories without accessing public knowledge."""
     from runtime.memory import ProjectMemoryStore
-    result = ProjectMemoryStore(product_root).search(query, platform=platform or None, limit=limit)
-    return json.dumps(result, ensure_ascii=False, indent=2)
+    try:
+        result = ProjectMemoryStore(_product_root(product_root)).search(query, platform=platform or None, limit=limit)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+    except ProductPathError as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
@@ -339,10 +380,10 @@ def approve_project_memory(product_root: str, memory_id: str, reviewer: str, not
     """Approve a project memory for project-level reuse."""
     from runtime.memory import ProjectMemoryError, ProjectMemoryStore
     try:
-        result = ProjectMemoryStore(product_root).approve(memory_id, reviewer=reviewer, notes=notes)
+        result = ProjectMemoryStore(_product_root(product_root)).approve(memory_id, reviewer=reviewer, notes=notes)
         return json.dumps(result, ensure_ascii=False, indent=2)
-    except ProjectMemoryError as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+    except (ProjectMemoryError, ProductPathError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
@@ -350,38 +391,56 @@ def promote_project_memory(product_root: str, memory_id: str, target: str, revie
     """Promote an approved memory into project common/platform knowledge."""
     from runtime.memory import ProjectMemoryError, ProjectMemoryStore
     try:
-        result = ProjectMemoryStore(product_root).promote(memory_id, target=target, reviewer=reviewer)
+        result = ProjectMemoryStore(_product_root(product_root)).promote(memory_id, target=target, reviewer=reviewer)
         return json.dumps(result, ensure_ascii=False, indent=2)
-    except ProjectMemoryError as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+    except (ProjectMemoryError, ProductPathError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
 def finalize_task(
-    task_json: str,
-    context_json: str,
-    model_result_json: str,
-    product_root: str = "",
+    product_root: str,
+    work_package_id: str,
+    task_id: str,
+    session_id: str,
+    claim_revision: int,
+    model_result_json: str = "{}",
+    config_path: str = "",
+    verify: bool = True,
+    allow_shell_command: bool = False,
 ) -> str:
-    """Validate model-reported edits and return the next Task state."""
-    from runtime.task_executor import TaskExecutionError, TaskExecutor
+    """Finalize a durable Task claim through the authoritative LifecycleService.
+
+    Legacy task/context JSON finalization is intentionally not exposed.
+    """
+    from runtime.lifecycle_service import LifecycleError, LifecycleService
+    from runtime.verifier import BuildVerifier
     try:
-        task = json.loads(task_json)
-        context = json.loads(context_json)
+        product = _product_root(product_root)
+        default_config = product / ".mcu-agent" / "config.yaml"
+        config = (
+            resolve_product_path(product, config_path, kind="file")
+            if config_path
+            else default_config if default_config.is_file() else None
+        )
         model_result = json.loads(model_result_json)
-        resolver = None
-        if product_root and any(isinstance(item, dict) and item.get("role") for item in model_result.get("output_artifacts", [])):
-            from runtime.artifact_resolver import ArtifactResolver
-            resolver = ArtifactResolver(product_root)
-        result = TaskExecutor().execute(
-            task,
-            context=context,
-            model_runner=lambda _context: model_result,
-            manifest=resolver,
+        if not isinstance(model_result, dict):
+            raise ValueError("model_result_json must contain an object")
+        result = LifecycleService(product, config_path=config).finalize_task(
+            work_package_id,
+            task_id,
+            session_id=session_id,
+            claim_revision=claim_revision,
+            model_result=model_result,
+            verifier=(
+                BuildVerifier(config, allow_shell_command=allow_shell_command)
+                if verify
+                else None
+            ),
         )
         return json.dumps(result, ensure_ascii=False, indent=2)
-    except (json.JSONDecodeError, TaskExecutionError) as exc:
-        return json.dumps({"error": str(exc)}, ensure_ascii=False)
+    except (json.JSONDecodeError, LifecycleError, ProductPathError, ValueError) as exc:
+        return _json_error(exc)
 
 
 @mcp.tool()
@@ -486,21 +545,21 @@ def get_workflow(name: str) -> str:
 def list_tools() -> str:
     """列出所有可用的 MCP 工具。"""
     tools = [
-        {"name": "parse_ioc", "description": "解析 CubeMX .ioc 文件"},
-        {"name": "parse_netlist", "description": "解析网表文件"},
+        {"name": "parse_ioc", "description": "[experimental] 解析 product_root 内的 CubeMX .ioc"},
+        {"name": "parse_netlist", "description": "[experimental] 解析 product_root 内的网表"},
         {"name": "collect_docs", "description": "收集项目文档"},
         {"name": "extract_pdf", "description": "提取 PDF 文本"},
         {"name": "identify_chips", "description": "识别芯片和模块"},
         {"name": "generate_schematic", "description": "生成硬件接口文件"},
         {"name": "generate_datasheet", "description": "生成芯片手册文件"},
         {"name": "generate_requirements", "description": "生成需求文件"},
-        {"name": "plan_work", "description": "意图分类、Work Package 生成与 Capability Gate"},
+        {"name": "plan_work", "description": "薄调用 runtime planner 并由 LifecycleService 持久化"},
         {"name": "review_evidence", "description": "证据审查预算与重复输入去重"},
         {"name": "resolve_artifact", "description": "从 canonical manifest 解析 artifact"},
         {"name": "validate_esp_idf", "description": "验证 ESP-IDF 工程与 component 实际纳入"},
-        {"name": "transition_state", "description": "执行受控 Phase/Work Package/Task 状态转换"},
-        {"name": "prepare_task", "description": "为模型准备受限 Task 上下文"},
-        {"name": "finalize_task", "description": "验证模型修改并推进 Task 状态"},
+        {"name": "claim_task", "description": "通过 LifecycleService 原子认领持久化 Task"},
+        {"name": "finalize_task", "description": "按 WP/task/claim ID 调用 LifecycleService finalize"},
+        {"name": "promote_task", "description": "晋升已验证的 claim workspace patch"},
         {"name": "route_esp_skill", "description": "将可选 esp-dev-skill 路由为受限 ESP recipe/API 参考"},
         {"name": "session_bootstrap", "description": "验证宿主入口并记录本次 runtime 会话握手"},
         {"name": "search_project_memory", "description": "检索当前项目范围内的经验记忆"},
@@ -530,7 +589,10 @@ def main():
         print(result[:500] + "..." if len(result) > 500 else result)
     else:
         # MCP 服务器模式
-        print("Starting MCU Agent MCP Server...", file=sys.stderr)
+        if not HAS_MCP:
+            print("Optional/experimental MCP support is unavailable: install the 'mcp' package", file=sys.stderr)
+            raise SystemExit(2)
+        print("Starting optional/experimental MCU Agent MCP Server...", file=sys.stderr)
         mcp.run()
 
 

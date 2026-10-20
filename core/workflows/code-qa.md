@@ -1,13 +1,13 @@
 ---
 name: code-qa
 description: Analyze source within a runtime-selected project or component scope
-version: "2.0.0"
+version: "3.0.0"
 status: stable
 category: [code, analysis]
 mcu_support: [stm32, esp32, ch592, ti-c2000]
 requires: [review-task, selected-source-scope]
 outputs: [analysis-result]
-contract_version: "2.0"
+contract_version: "3.0"
 priority: 50
 ---
 

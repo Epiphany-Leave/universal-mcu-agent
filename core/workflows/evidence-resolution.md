@@ -1,13 +1,13 @@
 ---
 name: evidence-resolution
 description: Resolve selected evidence debts under a bounded review budget
-version: "2.0.0"
+version: "3.0.0"
 status: stable
 category: [hardware, evidence, lifecycle]
 mcu_support: [stm32, esp32, ch592, ti-c2000]
 requires: [selected-debt-ids, artifact-manifest.yaml]
 outputs: [capability-updates, review-conclusion]
-contract_version: "2.0"
+contract_version: "3.0"
 priority: 85
 review_budget: {max_rounds: 2, exhausted_action: CLOSE_WITH_DEBT}
 ---

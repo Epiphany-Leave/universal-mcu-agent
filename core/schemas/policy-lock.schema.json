@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/policy-lock.schema.json",
+  "title": "Universal MCU Agent workflow policy lock v1",
+  "type": "object",
+  "required": ["schema_version", "registry_schema_version", "policy_digest", "workflow_digests", "created_at"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "registry_schema_version": {"const": "3.0"},
+    "policy_digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "workflow_digests": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://universal-mcu-agent.local/schemas/workflow-registry.schema.json",
+  "title": "Universal MCU Agent workflow registry v3",
+  "type": "object",
+  "required": ["schema_version", "workflows"],
+  "properties": {
+    "schema_version": {"const": "3.0"},
+    "workflows": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"$ref": "#/$defs/workflow"}
+    }
+  },
+  "$defs": {
+    "confinedPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+    },
+    "workflow": {
+      "type": "object",
+      "required": ["version", "path", "contract_version", "role", "allowed_project_states", "verification_profiles", "input_roles", "output_roles", "allowed_paths"],
+      "properties": {
+        "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "path": {"$ref": "#/$defs/confinedPath"},
+        "contract_version": {"type": "string", "minLength": 1},
+        "role": {"enum": ["runtime-entry", "task-handler"]},
+        "allowed_project_states": {
+          "type": "array",
+          "items": {"enum": ["UNINITIALIZED", "PROJECT_INITIALIZED", "EVIDENCE_PENDING", "IMPLEMENTATION_ALLOWED", "INVALID"]},
+          "uniqueItems": true
+        },
+        "verification_profiles": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "input_roles": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "output_roles": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "allowed_paths": {"type": "array", "items": {"$ref": "#/$defs/confinedPath"}, "uniqueItems": true},
+        "terminal_statuses": {"type": "array", "items": {"type": "string"}},
+        "review_budget": {"type": "object", "additionalProperties": true}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

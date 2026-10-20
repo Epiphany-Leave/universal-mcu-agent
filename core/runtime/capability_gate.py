@@ -6,8 +6,11 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Tuple
 
+from .config_loader import validate_assumptions, validate_capabilities
+
 
 SATISFIED_FACT_STATES = {"CONFIRMED", "AVAILABLE"}
+BLOCK_PRIORITY = {"BLOCKED_REQUIREMENT": 1, "BLOCKED_HARDWARE": 2, "BLOCKED_ARCHITECTURE": 3, "BLOCKED_CONFIG": 4}
 
 
 def _capability_index(capabilities: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
@@ -24,14 +27,19 @@ class CapabilityGate:
         assumptions: Iterable[Dict[str, Any]] = (),
     ) -> Dict[str, Any]:
         result = deepcopy(work_package)
-        index = _capability_index(capabilities)
+        capability_records = list(capabilities)
+        validate_capabilities(capability_records)
+        index = _capability_index(capability_records)
         assumption_records = list(assumptions)
-        ready_count = 0
-        blocked_count = 0
-
+        validate_assumptions(assumption_records)
         for task in result.get("tasks", []):
+            # Regating is not a lifecycle transition.  Active and terminal task
+            # states are immutable here, even when their capabilities change.
+            current_state = task.get("state", "")
+            if current_state != "READY" and not current_state.startswith("BLOCKED_"):
+                continue
             blockers: List[Dict[str, Any]] = []
-            block_state = "BLOCKED_REQUIREMENT"
+            block_states: List[str] = []
             allowed_assumptions = self._allowed_assumptions(result.get("mode"), task["id"], assumption_records)
             for requirement in task.get("requirements", []):
                 if requirement.get("gate") == "OPTIONAL":
@@ -42,27 +50,61 @@ class CapabilityGate:
                     allowed_assumptions,
                 )
                 if missing:
-                    block_state = requirement.get("on_missing", "BLOCKED_REQUIREMENT")
+                    state = requirement.get("on_missing", "BLOCKED_REQUIREMENT")
+                    block_states.append(state)
                     blockers.append({"capability": requirement.get("capability"), "facts": missing})
 
             if blockers:
+                block_state = max(block_states, key=lambda state: BLOCK_PRIORITY.get(state, 0))
                 task["state"] = block_state
                 task["blockers"] = blockers
-                task["waiting"] = "WAITING_EXTERNAL" if block_state in {"BLOCKED_HARDWARE", "BLOCKED_REQUIREMENT"} else None
-                blocked_count += 1
+                if block_state in {"BLOCKED_HARDWARE", "BLOCKED_REQUIREMENT"}:
+                    task["waiting"] = "WAITING_EXTERNAL"
+                else:
+                    task.pop("waiting", None)
             else:
                 task["state"] = "READY"
                 task.pop("blockers", None)
                 task.pop("waiting", None)
-                ready_count += 1
 
-        if ready_count:
-            result["state"] = "READY"
-        elif blocked_count:
+        counts = {
+            "ready": 0,
+            "blocked": 0,
+            "implementing": 0,
+            "validating": 0,
+            "done": 0,
+            "failed": 0,
+            "skipped": 0,
+        }
+        for task in result.get("tasks", []):
+            state = task.get("state", "")
+            if state == "READY":
+                counts["ready"] += 1
+            elif state.startswith("BLOCKED"):
+                counts["blocked"] += 1
+            elif state in {"IMPLEMENTING", "VALIDATING", "DONE", "FAILED", "SKIPPED"}:
+                counts[state.lower()] += 1
+        counts["active"] = counts["implementing"]
+        counts["total"] = len(result.get("tasks", []))
+
+        states = {task.get("state") for task in result.get("tasks", [])}
+        terminal = {"DONE", "SKIPPED"}
+        blocked = {state for state in states if isinstance(state, str) and state.startswith("BLOCKED_")}
+        if states and states <= terminal:
+            result["state"] = "DONE"
+        elif "IMPLEMENTING" in states:
+            result["state"] = "IN_PROGRESS"
+        elif "VALIDATING" in states:
+            result["state"] = "VALIDATING"
+        elif "READY" in states:
+            result["state"] = "IN_PROGRESS" if states & (terminal | {"FAILED"}) else "READY"
+        elif states and states <= (blocked | terminal | {"FAILED"}):
+            result["state"] = "BLOCKED"
+        elif blocked:
             result["state"] = "BLOCKED"
         else:
             result["state"] = "DONE"
-        result["summary"] = {"ready": ready_count, "blocked": blocked_count}
+        result["summary"] = counts
         return result
 
     @staticmethod
@@ -71,7 +113,7 @@ class CapabilityGate:
         required_facts: Iterable[str],
         allowed_assumptions: set[str] | None = None,
     ) -> List[str]:
-        if not capability:
+        if not capability or capability.get("state") == "BLOCKED":
             return list(required_facts)
         facts = capability.get("facts", {})
         missing = []
@@ -103,9 +145,13 @@ class CapabilityGate:
                         expires = expires.replace(tzinfo=timezone.utc)
                     if expires <= now:
                         continue
-                except ValueError:
-                    pass
-            result.add(assumption["id"])
+                except (TypeError, ValueError):
+                    # Invalid expiry timestamps can never authorize an assumed
+                    # hardware fact.  EAR handling is deliberately fail closed.
+                    continue
+            assumption_id = assumption.get("id")
+            if assumption_id:
+                result.add(assumption_id)
         return result
 
     def impact_view(self, work_packages: Iterable[Dict[str, Any]]) -> Dict[str, Dict[str, List[str]]]:

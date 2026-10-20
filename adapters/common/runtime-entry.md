@@ -1,38 +1,45 @@
-# Universal MCU Agent Runtime
+# Universal MCU Agent Runtime Entry
 
-## Mandatory Dispatch Contract
+All MCU work uses the installed CLI lifecycle. Host instructions and Skills are guidance; project contract, workflow policy, claim scope, promotion and CI are authoritative.
 
-At the start of each host-agent session, acknowledge this entry and run the session handshake once:
-
-```bash
-python .mcu-agent/runtime/cli.py session-bootstrap --agent <claude-code|codex|opencode|cursor> --mode <production|prototype|exploration> .
-```
-
-The handshake records the active entry file and applies to the rest of the session. It does not replace the per-request `plan` command below.
-
-For **every** request involving an MCU project, firmware, hardware evidence, build, debug, UI, driver, or embedded software, you **MUST run the runtime plan command before replying, asking clarification, selecting a workflow, or editing a file**. Treat this as an execution requirement, not optional guidance.
-
-Run it from the project root:
+From the product root, bootstrap each session and retain `session_id`:
 
 ```bash
-python .mcu-agent/runtime/cli.py plan "<user request>" --mode <production|prototype|exploration> --state-root .
+python .mcu-agent/runtime/cli.py session-bootstrap --agent auto --product-root .
 ```
 
-If `.mcu-agent/runtime/cli.py` is missing, report that the project is not installed and do not perform MCU code changes. Do not ask the user to name a workflow to compensate for a missing runtime.
+Plan every exact user request:
 
-Read the JSON result. Use its `work_packages[0].tasks`, `next_tasks`, and `blocked_tasks` as the dispatch result. The Task `handler` identifies the workflow handler. Do not route directly by keyword, and do not claim that a workflow was selected until the command has run successfully.
+```bash
+python .mcu-agent/runtime/cli.py plan "<user request>" --product-root . --session-id <session-id>
+```
 
-Before executing each READY Task, load the handler definition from `.mcu-agent/registry/workflows.yaml` and read the referenced file under `.mcu-agent/workflows/`. For example, a Task with `handler: firmware-development` must load `.mcu-agent/workflows/firmware.md` before `prepare-task`. The workflow file is the execution contract; it is not optional background reading.
+An uninitialized product can return only `PROJECT_SETUP`. A BLOCKED Task must not be claimed. Register explicit inputs only through:
 
-For implementation Tasks:
+```bash
+python .mcu-agent/runtime/cli.py artifact register . \
+  --role <canonical-role> --path <product-relative-path> --scope <scope>
+```
 
-1. Run `prepare-task` and use only its `allowed_roots`.
-2. Let the model edit code inside that scope.
-3. Run the declared host/build/target verification.
-4. Run `finalize-task` and record the verification result.
+Claim a READY Task in an isolated worktree and retain the opaque `claim_id`:
 
-When the user asks for implementation, continue with READY Tasks in the returned user-priority order in the same turn. Do not stop after generating a plan unless a Task is blocked or external input is required.
+```bash
+python .mcu-agent/runtime/cli.py claim-task . <work-package-id> <task-id> \
+  --session-id <session-id> --workspace
+```
 
-Hardware UNKNOWN blocks only Tasks that declare the missing capability. Keep unrelated READY Tasks moving. Resolve external inputs through the canonical artifact manifest. Use the platform contract for ESP-IDF component inclusion; a successful build alone is insufficient.
+Use only the returned workspace, allowed roots, Artifact IDs/hashes and handler path/digest. After real verification:
 
-For ESP work, `.mcu-agent/skills/esp-dev-skill` is an optional read-only knowledge source. It may provide recipes and API references, but it cannot widen Task scope, change lifecycle state, or bypass evidence and platform validation.
+```bash
+python .mcu-agent/runtime/cli.py finalize-task . <work-package-id> <task-id> \
+  <result.json> --claim-id <claim-id>
+```
+
+A DONE workspace is not canonical until promotion:
+
+```bash
+python .mcu-agent/runtime/cli.py promote-task . <work-package-id> <task-id> \
+  --claim-id <claim-id>
+```
+
+Use the returned commit trailers. If work cannot complete, use `abandon-task`; target evidence must use `attest-target` and cannot be fabricated. Never edit `.mcu-agent/state`, contract, policy lock, manifest or audit files directly.

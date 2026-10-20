@@ -1,50 +1,103 @@
-# Universal MCU Agent — Workflow Registry
-# 路径索引（版本信息在 workflow front matter 中维护）
-
+# Universal MCU Agent — machine-readable workflow policy registry
+schema_version: "3.0"
 workflows:
   orchestrator:
+    version: "3.0.0"
     path: workflows/orchestrator.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: runtime-entry
+    allowed_project_states: [UNINITIALIZED, PROJECT_INITIALIZED, EVIDENCE_PENDING, IMPLEMENTATION_ALLOWED, INVALID]
+    verification_profiles: []
+    input_roles: []
+    output_roles: []
+    allowed_paths: []
 
   project-setup:
+    version: "3.0.0"
     path: workflows/project-setup.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [UNINITIALIZED]
+    verification_profiles: [analysis]
+    input_roles: []
+    output_roles: []
+    allowed_paths: [hardware, software, .mcu-agent/project-contract.json, .mcu-agent/policy.lock, .mcu-agent/config.yaml, .mcu-agent/artifact-manifest.yaml]
 
   schematic-analysis:
+    version: "3.0.0"
     path: workflows/schematic.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [PROJECT_INITIALIZED, EVIDENCE_PENDING, IMPLEMENTATION_ALLOWED]
+    verification_profiles: [analysis]
+    input_roles: [hardware.schematic.primary]
+    output_roles: [hardware.peripheral_connections]
+    allowed_paths: [docs/hardware]
 
   datasheet-extraction:
+    version: "3.0.0"
     path: workflows/datasheet.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [PROJECT_INITIALIZED, EVIDENCE_PENDING, IMPLEMENTATION_ALLOWED]
+    verification_profiles: [analysis]
+    input_roles: [device.*.datasheet]
+    output_roles: [device.*.capabilities]
+    allowed_paths: [docs/hardware]
 
   requirements-analysis:
+    version: "3.0.0"
     path: workflows/requirements.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [PROJECT_INITIALIZED, EVIDENCE_PENDING, IMPLEMENTATION_ALLOWED]
+    verification_profiles: [analysis]
+    input_roles: [requirements.primary]
+    output_roles: [requirements.structured, requirements.acceptance_tests]
+    allowed_paths: [docs/requirements]
 
   firmware-development:
+    version: "3.0.0"
     path: workflows/firmware.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [IMPLEMENTATION_ALLOWED]
+    verification_profiles: [analysis, host, build, target]
+    input_roles: ["*"]
+    output_roles: ["*"]
+    allowed_paths: ["."]
 
   build-debug:
+    version: "3.0.0"
     path: workflows/build.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [IMPLEMENTATION_ALLOWED]
+    verification_profiles: [build, target]
+    input_roles: ["*"]
+    output_roles: ["*"]
+    allowed_paths: ["."]
 
   code-qa:
+    version: "3.0.0"
     path: workflows/code-qa.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [PROJECT_INITIALIZED, EVIDENCE_PENDING, IMPLEMENTATION_ALLOWED]
+    verification_profiles: [analysis]
+    input_roles: ["*"]
+    output_roles: ["*"]
+    allowed_paths: ["."]
 
   evidence-resolution:
+    version: "3.0.0"
     path: workflows/evidence-resolution.md
-    contract_version: "2.0"
+    contract_version: "3.0"
     role: task-handler
+    allowed_project_states: [PROJECT_INITIALIZED, EVIDENCE_PENDING, IMPLEMENTATION_ALLOWED]
+    verification_profiles: [analysis]
+    input_roles: ["*"]
+    output_roles: ["*"]
+    allowed_paths: [docs]
     terminal_statuses: [COMPLETED, WAITING_EXTERNAL, CANCELLED]
     review_budget: {max_rounds: 2, exhausted_action: CLOSE_WITH_DEBT}

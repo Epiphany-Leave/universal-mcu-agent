@@ -1,0 +1,16 @@
+(export (version "E")
+  (design (source "fixture") (date "2025-01-01"))
+  (components
+    (comp (ref "U1") (value "STM32F103C8T6")
+      (footprint "Package_QFP:LQFP-48")
+      (fields (field (name "Description") "MCU \"fixture\"")))
+    (comp (ref "J1") (value "Connector_Generic:Conn_01x02")
+      (footprint "Connector_PinHeader_1x02"))
+    (comp (ref "R1") (value "1k") (footprint "R_0603")))
+  (nets
+    (net (code "1") (name "UART_TX")
+      (node (ref "U1") (pin "10") (pinfunction "PA9/USART1_TX") (pintype "output"))
+      (node (ref "J1") (pin "1") (pinfunction "Pin_1") (pintype "passive")))
+    (net (code "2") (name "LED_STATUS")
+      (node (ref "U1") (pin "2") (pinfunction "PC13") (pintype "bidirectional"))
+      (node (ref "R1") (pin "1") (pinfunction "1") (pintype "passive")))))

@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .netlist_parser import NetlistParser
+    from .netlist_parser import NetlistParser, validate_parsed_netlist
 except ImportError:
-    from netlist_parser import NetlistParser
+    from netlist_parser import NetlistParser, validate_parsed_netlist
 
 
 class EnetParser(NetlistParser):
@@ -75,43 +75,51 @@ def parse_enet_file(file_path: Path) -> dict[str, Any]:
         "nets": {},
     }
     
-    # 解析元件
-    for comp_id, comp in data.get("components", {}).items():
-        props = comp.get("props", {})
-        designator = props.get("Designator", "")
-        device_name = props.get("DeviceName", "")
-        value = props.get("Value", "")
-        footprint = props.get("FootprintName", "")
-        
-        # 解析引脚
+    components = data.get("components", {})
+    if not isinstance(components, dict):
+        raise ValueError("invalid ENET structure: components must be an object")
+
+    # Normalize vendor-specific props/pinInfoMap exactly once. All downstream
+    # operations consume this model rather than accidentally reading raw ENET.
+    for comp_id, comp in components.items():
+        if not isinstance(comp, dict):
+            raise ValueError(f"invalid ENET component {comp_id!r}: expected an object")
+        props = comp.get("props", {}) or {}
+        designator = str(props.get("Designator") or comp.get("designator") or comp_id)
+        device_name = str(props.get("DeviceName") or comp.get("device") or "")
+        value = str(props.get("Value") or comp.get("value") or "")
+        footprint = str(props.get("FootprintName") or comp.get("footprint") or "")
+
+        raw_pins = comp.get("pinInfoMap", comp.get("pins", {})) or {}
+        if not isinstance(raw_pins, dict):
+            raise ValueError(f"invalid ENET component {designator!r}: pins must be an object")
         pins = {}
-        for pin_id, pin_info in comp.get("pinInfoMap", {}).items():
-            pin_name = pin_info.get("name", "")
-            net = pin_info.get("net", "")
-            pins[pin_id] = {
-                "name": pin_name,
-                "net": net,
-            }
-            
-            # 收集网络信息
-            if net and not net.startswith("$"):
-                if net not in result["nets"]:
-                    result["nets"][net] = []
-                result["nets"][net].append({
+        for raw_pin_id, pin_info in raw_pins.items():
+            if not isinstance(pin_info, dict):
+                raise ValueError(f"invalid ENET pin {designator}.{raw_pin_id}: expected an object")
+            pin_id = str(raw_pin_id)
+            pin_name = str(pin_info.get("name", ""))
+            net = str(pin_info.get("net", ""))
+            pins[pin_id] = {"name": pin_name, "net": net}
+            # EasyEDA uses $-prefixed names for valid anonymous nets.  They
+            # still carry real connectivity and must not be discarded.
+            if net:
+                result["nets"].setdefault(net, []).append({
                     "component": designator,
                     "pin": pin_id,
                     "pin_name": pin_name,
                 })
-        
+
         result["components"][designator] = {
-            "id": comp_id,
+            "id": str(comp_id),
+            "designator": designator,
             "device": device_name,
             "value": value,
             "footprint": footprint,
             "pins": pins,
         }
-    
-    return result
+
+    return validate_parsed_netlist(result, "ENET")
 
 
 def find_mcu_in_enet(enet_data: dict) -> dict[str, Any] | None:
@@ -169,20 +177,15 @@ def extract_mcu_interfaces(enet_data: dict) -> list[dict[str, Any]]:
     if not mcu:
         return interfaces
     
-    # 收集所有网络连接的元器件
+    # Consume only the normalized component model returned by parse_enet_file.
     net_components = {}
-    for comp_id, comp in enet_data.get("components", {}).items():
-        props = comp.get("props", {})
-        designator = props.get("Designator", "")
-        device = props.get("DeviceName", "")
-        
-        for pin_id, pin_info in comp.get("pinInfoMap", {}).items():
+    for designator, comp in enet_data.get("components", {}).items():
+        device = comp.get("device", "")
+        for pin_info in comp.get("pins", {}).values():
             net = pin_info.get("net", "")
             if net:
-                if net not in net_components:
-                    net_components[net] = []
-                net_components[net].append({
-                    "designator": designator,
+                net_components.setdefault(net, []).append({
+                    "designator": comp.get("designator", designator),
                     "device": device,
                 })
     

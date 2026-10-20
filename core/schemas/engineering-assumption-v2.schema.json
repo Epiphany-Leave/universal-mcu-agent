@@ -7,6 +7,8 @@
   "properties": {
     "schema_version": {"const": "2.0"},
     "id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "audit": {"oneOf": [{"type": "object", "additionalProperties": true}, {"type": "array", "items": {"type": "object", "additionalProperties": true}}]},
     "mode": {"enum": ["prototype", "exploration"]},
     "state": {"enum": ["PROPOSED", "APPROVED", "EXPIRED", "REVOKED", "VALIDATED"]},
     "task_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},

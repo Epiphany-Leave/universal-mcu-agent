@@ -1,13 +1,13 @@
 ---
 name: orchestrator
 description: Runtime-backed intent and work-package entry point
-version: "2.0.0"
+version: "3.0.0"
 status: stable
 category: [system, routing]
 mcu_support: [stm32, esp32, ch592, ti-c2000]
 requires: [runtime]
 outputs: [intent-record, work-package, gated-tasks]
-contract_version: "2.0"
+contract_version: "3.0"
 priority: 0
 ---
 

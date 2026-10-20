@@ -1,13 +1,13 @@
 ---
 name: firmware-development
 description: Implement runtime-selected firmware tasks
-version: "2.0.0"
+version: "3.0.0"
 status: stable
 category: [firmware, embedded]
 mcu_support: [stm32, esp32, ch592, ti-c2000]
 requires: [work-package, ready-task]
 outputs: [source-code, task-validation]
-contract_version: "2.0"
+contract_version: "3.0"
 priority: 80
 ---
 
@@ -17,18 +17,21 @@ priority: 80
 
 - A v2 Work Package exists.
 - The selected Task state is `READY` or `IMPLEMENTING`.
-- Only the Task's declared capability facts are gates.
-- There is no global `hardware.json` or `datasheet.json` gate.
+- The tracked project contract is valid and the derived state is `IMPLEMENTATION_ALLOWED`.
+- Every contract-required implementation Artifact role resolves with a valid SHA-256.
+- The Task's declared capability facts remain additional task-level gates.
+- Legacy `hardware.json`/`datasheet.json` filenames are never accepted as implicit evidence.
 
 ## Execution
 
 1. Resolve only the Task's artifact roles through `.mcu-agent/artifact-manifest.yaml`.
-2. Transition Task `READY -> IMPLEMENTING` through the runtime.
+2. Transition Task `READY -> IMPLEMENTING` through `claim-task --workspace`; never edit the canonical product directly.
 3. Load the platform contract for the selected firmware project root.
 4. Implement only the selected Task and its declared dependencies.
 5. Run the Task's verification tier: `host`, `build`, or `target`.
 6. Transition to `VALIDATING`, then `DONE`; on missing facts, transition only this Task to the matching `BLOCKED_*` state.
 7. Register newly discovered unrelated unknowns as debt without switching away from the current Work Package.
+8. Finalize real verification, then use `promote-task`; only promotion may apply the workspace patch to the canonical product.
 
 For Espressif Tasks, `prepare-task` may expose an optional `esp_dev_skill` section. Read the listed subskill, recipe, and resource files in that order. These are knowledge inputs only; they cannot authorize GPIO assumptions, change `allowed_roots`, or bypass manifest and platform-contract verification.
 

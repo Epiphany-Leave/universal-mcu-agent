@@ -25,123 +25,161 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .netlist_parser import NetlistParser
+    from .netlist_parser import NetlistParser, validate_parsed_netlist
 except ImportError:
-    from netlist_parser import NetlistParser
+    from netlist_parser import NetlistParser, validate_parsed_netlist
+
+
+class SExpressionError(ValueError):
+    """Raised for malformed KiCad S-expression input."""
+
+
+def tokenize_sexpression(content: str) -> list[str]:
+    """Tokenize parentheses, atoms, and escaped quoted strings."""
+    tokens: list[str] = []
+    index = 0
+    length = len(content)
+    while index < length:
+        char = content[index]
+        if char.isspace():
+            index += 1
+            continue
+        if char == ";":
+            newline = content.find("\n", index)
+            index = length if newline < 0 else newline + 1
+            continue
+        if char in "()":
+            tokens.append(char)
+            index += 1
+            continue
+        if char == '"':
+            index += 1
+            value: list[str] = []
+            while index < length:
+                char = content[index]
+                if char == '"':
+                    index += 1
+                    tokens.append("".join(value))
+                    break
+                if char == "\\":
+                    index += 1
+                    if index >= length:
+                        raise SExpressionError("unterminated escape in quoted string")
+                    escaped = content[index]
+                    value.append({"n": "\n", "r": "\r", "t": "\t"}.get(escaped, escaped))
+                    index += 1
+                    continue
+                value.append(char)
+                index += 1
+            else:
+                raise SExpressionError("unterminated quoted string")
+            continue
+        end = index
+        while end < length and not content[end].isspace() and content[end] not in "();":
+            end += 1
+        if end == index:
+            raise SExpressionError(f"unexpected character at offset {index}")
+        tokens.append(content[index:end])
+        index = end
+    return tokens
+
+
+def parse_sexpression(content: str) -> list:
+    """Parse one complete S-expression into nested Python lists."""
+    tokens = tokenize_sexpression(content)
+    stack: list[list] = []
+    roots: list = []
+    for token in tokens:
+        if token == "(":
+            expression: list = []
+            if stack:
+                stack[-1].append(expression)
+            else:
+                roots.append(expression)
+            stack.append(expression)
+        elif token == ")":
+            if not stack:
+                raise SExpressionError("unexpected closing parenthesis")
+            stack.pop()
+        else:
+            if not stack:
+                raise SExpressionError(f"atom outside expression: {token!r}")
+            stack[-1].append(token)
+    if stack:
+        raise SExpressionError("unclosed parenthesis")
+    if len(roots) != 1:
+        raise SExpressionError(f"expected one root expression, found {len(roots)}")
+    return roots[0]
+
+
+def _children(expression: list, name: str) -> list[list]:
+    return [item for item in expression[1:] if isinstance(item, list) and item and item[0] == name]
+
+
+def _field(expression: list, name: str, default: str = "") -> str:
+    matches = _children(expression, name)
+    if not matches or len(matches[0]) < 2 or isinstance(matches[0][1], list):
+        return default
+    return str(matches[0][1])
 
 
 class KiCadNetlistParser(NetlistParser):
     """KiCad 网表解析器"""
     
     def parse(self, file_path: Path) -> dict[str, Any]:
-        """
-        解析 KiCad 网表文件
-        
-        Args:
-            file_path: .net 文件路径
-            
-        Returns:
-            标准化格式的网表数据
-        """
-        content = file_path.read_text(encoding='utf-8', errors='ignore')
-        
-        result = {
-            "version": "KiCad",
-            "file": str(file_path),
-            "components": {},
-            "nets": {},
-        }
-        
-        # 解析 components 部分
-        components = self._parse_components(content)
-        result["components"] = components
-        
-        # 解析 nets 部分
-        nets = self._parse_nets(content)
-        result["nets"] = nets
-        
-        # 将网络信息填充到元件引脚
-        for net_name, nodes in nets.items():
-            for node in nodes:
-                ref = node.get("component", "")
-                pin = node.get("pin", "")
-                if ref in result["components"]:
-                    if pin in result["components"][ref]["pins"]:
-                        result["components"][ref]["pins"][pin]["net"] = net_name
-        
-        return result
-    
-    def _parse_components(self, content: str) -> dict:
-        """解析 components 部分"""
-        components = {}
-        
-        # 匹配 (comp (ref "U1") (value "STM32G431") (footprint "..."))
-        import re
-        comp_pattern = r'\(comp\s+\(ref\s+"([^"]+)"\)\s+(?:\(value\s+"([^"]*?)"\)\s+)?(?:\(footprint\s+"([^"]*?)"\)\s+)?.*?\)'
-        
-        for match in re.finditer(comp_pattern, content, re.DOTALL):
-            ref = match.group(1)
-            value = match.group(2) or ""
-            footprint = match.group(3) or ""
-            
-            # 提取引脚信息
-            pins = self._extract_pins_for_component(content, ref)
-            
+        """Parse a KiCad legacy netlist using its real nested grammar."""
+        path = Path(file_path)
+        content = path.read_text(encoding="utf-8-sig", errors="strict")
+        try:
+            root = parse_sexpression(content)
+        except (UnicodeError, SExpressionError) as exc:
+            raise ValueError(f"invalid KiCad S-expression in {path}: {exc}") from exc
+        if not root or root[0] != "export":
+            raise ValueError(f"invalid KiCad netlist in {path}: root expression is not export")
+
+        component_sections = _children(root, "components")
+        net_sections = _children(root, "nets")
+        if len(component_sections) != 1 or len(net_sections) != 1:
+            raise ValueError(f"invalid KiCad netlist in {path}: expected components and nets sections")
+
+        components: dict[str, dict[str, Any]] = {}
+        for expression in _children(component_sections[0], "comp"):
+            ref = _field(expression, "ref")
+            if not ref:
+                raise ValueError(f"invalid KiCad component in {path}: missing ref")
             components[ref] = {
                 "designator": ref,
-                "device": value,
-                "footprint": footprint,
-                "pins": pins,
+                "device": _field(expression, "value"),
+                "footprint": _field(expression, "footprint"),
+                "pins": {},
             }
-        
-        return components
-    
-    def _extract_pins_for_component(self, content: str, ref: str) -> dict:
-        """提取特定元件的引脚信息"""
-        pins = {}
-        
-        # 查找该元件在 nets 中的引用
-        import re
-        node_pattern = rf'\(node\s+\(ref\s+"{re.escape(ref)}"\)\s+\(pin\s+"([^"]+)"\)\)'
-        
-        for match in re.finditer(node_pattern, content):
-            pin_name = match.group(1)
-            # 引脚编号可能是数字或名称
-            pins[pin_name] = {
-                "name": pin_name,
-                "net": "",  # 将在后续填充
-            }
-        
-        return pins
-    
-    def _parse_nets(self, content: str) -> dict:
-        """解析 nets 部分"""
-        nets = {}
-        
-        import re
-        # 匹配 (net (code "1") (name "GND") (node ...) (node ...))
-        net_pattern = r'\(net\s+\(code\s+"(\d+)"\)\s+\(name\s+"([^"]+)"\)\s+(.*?)\)'
-        
-        for match in re.finditer(net_pattern, content, re.DOTALL):
-            code = match.group(1)
-            name = match.group(2)
-            nodes_str = match.group(3)
-            
-            # 解析节点
-            nodes = []
-            node_pattern = r'\(node\s+\(ref\s+"([^"]+)"\)\s+\(pin\s+"([^"]+)"\)\)'
-            for node_match in re.finditer(node_pattern, nodes_str):
-                ref = node_match.group(1)
-                pin = node_match.group(2)
-                nodes.append({
-                    "component": ref,
-                    "pin": pin,
-                    "pin_name": pin,
-                })
-            
-            nets[name] = nodes
-        
-        return nets
+
+        nets: dict[str, list[dict[str, str]]] = {}
+        for expression in _children(net_sections[0], "net"):
+            name = _field(expression, "name")
+            code = _field(expression, "code")
+            if not name:
+                name = f"Net-{code}" if code else ""
+            if not name:
+                raise ValueError(f"invalid KiCad net in {path}: missing name and code")
+            nodes = nets.setdefault(name, [])
+            for node in _children(expression, "node"):
+                ref = _field(node, "ref")
+                pin = _field(node, "pin")
+                if not ref or not pin:
+                    raise ValueError(f"invalid KiCad node on net {name!r}: missing ref or pin")
+                pin_name = _field(node, "pinfunction", pin)
+                nodes.append({"component": ref, "pin": pin, "pin_name": pin_name})
+                if ref in components:
+                    components[ref]["pins"][pin] = {"name": pin_name, "net": name}
+
+        result = {
+            "version": "KiCad",
+            "file": str(path),
+            "components": components,
+            "nets": nets,
+        }
+        return validate_parsed_netlist(result, "KiCad")
     
     def find_mcu(self, data: dict) -> dict | None:
         """

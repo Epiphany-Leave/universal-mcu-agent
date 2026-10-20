@@ -7,6 +7,9 @@
   "properties": {
     "schema_version": {"const": "2.0"},
     "id": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 1},
+    "claim": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": true}]},
+    "audit": {"oneOf": [{"type": "object", "additionalProperties": true}, {"type": "array", "items": {"type": "object", "additionalProperties": true}}]},
     "state": {"enum": ["AVAILABLE", "DEGRADED", "BLOCKED", "UNKNOWN"]},
     "facts": {
       "type": "object",
@@ -17,7 +20,10 @@
           "state": {"enum": ["CONFIRMED", "AVAILABLE", "UNKNOWN", "ASSUMED", "CONFLICT"]},
           "value": {},
           "evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-          "ear_id": {"type": ["string", "null"]}
+          "ear_id": {"type": ["string", "null"]},
+          "revision": {"type": "integer", "minimum": 1},
+          "claim": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": true}]},
+          "audit": {"type": "object", "additionalProperties": true}
         },
         "additionalProperties": false
       }

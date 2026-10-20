@@ -6,6 +6,8 @@
   "required": ["schema_version", "reviews"],
   "properties": {
     "schema_version": {"const": "2.0"},
+    "revision": {"type": "integer", "minimum": 1},
+    "audit": {"oneOf": [{"type": "object", "additionalProperties": true}, {"type": "array", "items": {"type": "object", "additionalProperties": true}}]},
     "reviews": {
       "type": "object",
       "additionalProperties": {

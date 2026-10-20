@@ -20,9 +20,9 @@ from pathlib import Path
 from typing import Any
 
 try:
-    from .netlist_parser import NetlistParser
+    from .netlist_parser import NetlistParser, validate_parsed_netlist
 except ImportError:
-    from netlist_parser import NetlistParser
+    from netlist_parser import NetlistParser, validate_parsed_netlist
 
 
 class CadenceNetlistParser(NetlistParser):
@@ -100,7 +100,7 @@ class CadenceNetlistParser(NetlistParser):
             
             result["nets"][net_name] = nodes
         
-        return result
+        return validate_parsed_netlist(result, "Cadence XML")
     
     def _parse_text(self, file_path: Path) -> dict[str, Any]:
         """解析文本格式网表（类似 Protel 格式）"""
@@ -160,7 +160,7 @@ class CadenceNetlistParser(NetlistParser):
             
             result["nets"][net_name] = nodes
         
-        return result
+        return validate_parsed_netlist(result, "Cadence text")
     
     def find_mcu(self, data: dict) -> dict | None:
         """

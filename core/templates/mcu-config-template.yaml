@@ -18,6 +18,30 @@ toolchain:
   compiler: ""                    # gcc / armcc / riscv-gcc
   version: ""                     # IDE 版本号
 
+# 真实验证命令使用 argv，runtime 始终以 shell=false 执行。
+# Windows 选择 argv_windows，WSL/Linux 选择 argv_posix。
+# verification:
+#   profiles:
+#     host:
+#       tier: host
+#       argv_windows: ["python", "-m", "unittest", "discover", "-s", "tests"]
+#       argv_posix: ["python3", "-m", "unittest", "discover", "-s", "tests"]
+#       cwd: "."
+#       timeout: 300
+#     build:
+#       tier: build
+#       argv_windows: ["idf.py", "build"]
+#       argv_posix: ["idf.py", "build"]
+#       cwd: "."
+#       timeout: 900
+#     target:
+#       tier: target
+#       kind: hil
+#       argv_windows: ["python", "tests/hil.py"]
+#       argv_posix: ["python3", "tests/hil.py"]
+#       cwd: "."
+#       timeout: 900
+
 hardware:
   screen: ""                      # 屏幕规格，如 10.1寸 1024x600
   camera: ""                      # 摄像头型号
@@ -48,11 +72,11 @@ directories:
   archive: "archive"
 
 lifecycle:
-  phase_state: ".mcu-agent/runtime/phase-state.json"
-  evidence_debts: ".mcu-agent/runtime/evidence-debts.json"
+  phase_state: ".mcu-agent/state/phase-state.json"
+  evidence_debts: ".mcu-agent/state/evidence-debts.json"
   artifact_manifest: ".mcu-agent/artifact-manifest.yaml"
-  assumptions: ".mcu-agent/runtime/engineering-assumptions.json"
-  execution_ledger: ".mcu-agent/runtime/execution-ledger.json"
+  assumptions: ".mcu-agent/state/engineering-assumptions.json"
+  execution_ledger: ".mcu-agent/state/execution-ledger.json"
 
 rules:
   - "人管物理世界，AI 管信息世界"

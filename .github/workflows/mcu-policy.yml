@@ -1,0 +1,62 @@
+name: Universal MCU Agent policy gate
+
+on:
+  pull_request:
+  workflow_call:
+    inputs:
+      product-root:
+        type: string
+        default: .
+      base-sha:
+        type: string
+        required: true
+      head-sha:
+        type: string
+        required: true
+permissions:
+  contents: read
+
+jobs:
+  verify-mcu-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || inputs.head-sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and verify trusted verifier
+        shell: bash
+        env:
+          WHEEL_URL: ${{ vars.MCU_VERIFIER_WHEEL_URL }}
+          WHEEL_SHA256: ${{ vars.MCU_VERIFIER_WHEEL_SHA256 }}
+        run: |
+          set -euo pipefail
+          [[ "$WHEEL_SHA256" =~ ^[A-Fa-f0-9]{64}$ ]] || { echo "missing/invalid protected verifier wheel SHA-256 variable" >&2; exit 2; }
+          [[ "$WHEEL_URL" =~ ^https:// ]] || { echo "missing/invalid protected HTTPS verifier wheel URL variable" >&2; exit 2; }
+          curl --fail --location --proto '=https' --tlsv1.2 "$WHEEL_URL" --output /tmp/universal-mcu-agent.whl
+          printf '%s  %s\n' "${WHEEL_SHA256,,}" /tmp/universal-mcu-agent.whl | sha256sum --check --strict
+          python -m pip install --disable-pip-version-check /tmp/universal-mcu-agent.whl
+      - name: Verify repository governance
+        shell: bash
+        env:
+          PRODUCT_ROOT: ${{ inputs.product-root || '.' }}
+          REQUESTED_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base-sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head-sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_BASE_SHA" =~ ^[A-Fa-f0-9]{40,64}$ ]] || { echo "invalid base commit SHA" >&2; exit 2; }
+          [[ "$HEAD_SHA" =~ ^[A-Fa-f0-9]{40,64}$ ]] || { echo "invalid head commit SHA" >&2; exit 2; }
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            BASE_SHA="$(git merge-base "$REQUESTED_BASE_SHA" "$HEAD_SHA")"
+          else
+            BASE_SHA="$REQUESTED_BASE_SHA"
+          fi
+          mcu-agent verify-repository \
+            --strict \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            -- "$PRODUCT_ROOT"

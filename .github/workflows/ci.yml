@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install test and MCP dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[test,mcp]"
+
+      - name: Verify release files are tracked
+        shell: python
+        run: |
+          import subprocess
+          required = [
+              "pyproject.toml", ".gitignore", "adapters/pi/AGENTS.md",
+              "core/runtime/lifecycle_service.py", "core/runtime/contract_validator.py",
+              "core/runtime/verifier.py", "core/runtime/project_contract.py",
+              "core/runtime/workflow_registry.py", "core/runtime/workspace.py",
+              "core/runtime/repository_verifier.py", "core/tools/parsers/path_security.py",
+              "core/schemas/mcu-config.schema.json", "core/schemas/project-contract.schema.json",
+              "adapters/pi/skills/mcu-agent/SKILL.md",
+              "tests/test_installers.py", "tests/test_cli_e2e.py", "docs/migration-v0.7.md",
+              "docs/migration-v0.8.md", "docs/ci-gate-v0.8.md",
+          ]
+          tracked = set(subprocess.check_output(["git", "ls-files"], text=True).splitlines())
+          missing = sorted(set(required) - tracked)
+          if missing:
+              raise SystemExit(f"release files are not tracked: {missing}")
+
+      - name: Clean archive smoke test
+        shell: python
+        run: |
+          import subprocess
+          import sys
+          import tarfile
+          from pathlib import Path
+          archive = Path("release-tree.tar")
+          destination = Path("release-tree")
+          subprocess.run(["git", "archive", "HEAD", "-o", str(archive)], check=True)
+          with tarfile.open(archive) as bundle:
+              bundle.extractall(destination)
+          subprocess.run(
+              [sys.executable, str((destination / "core" / "runtime" / "cli.py").resolve()), "--help"],
+              cwd=destination,
+              check=True,
+              stdout=subprocess.DEVNULL,
+          )
+          subprocess.run(
+              [sys.executable, "-c", "import sys; sys.path.insert(0, 'core'); from runtime.workflow_registry import WorkflowRegistry; WorkflowRegistry().descriptor('project-setup')"],
+              cwd=destination,
+              check=True,
+          )
+
+      - name: Build and inspect wheel
+        shell: python
+        run: |
+          import subprocess
+          import sys
+          import zipfile
+          from pathlib import Path
+          wheelhouse = Path("wheelhouse")
+          subprocess.run([sys.executable, "-m", "pip", "wheel", "--no-deps", ".", "-w", str(wheelhouse)], check=True)
+          wheel = next(wheelhouse.glob("*.whl"))
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          required = {
+              "runtime/cli.py", "runtime/lifecycle_service.py", "runtime/project_contract.py",
+              "runtime/workflow_registry.py", "runtime/workspace.py", "runtime/repository_verifier.py",
+              "schemas/work-package.schema.json", "schemas/project-contract.schema.json",
+              "registry/platforms.yaml", "workflows/project-setup.md",
+          }
+          missing = sorted(required - names)
+          suffixes = [
+              "share/universal-mcu-agent/pi-skill/SKILL.md",
+              "share/universal-mcu-agent/pi-skill/references/handlers/project-setup.md",
+              "share/universal-mcu-agent/pi-skill/references/handlers/evidence.md",
+              "share/universal-mcu-agent/pi-skill/references/handlers/firmware.md",
+              "share/universal-mcu-agent/pi-skill/references/handlers/build.md",
+              "share/universal-mcu-agent/pi-skill/references/handlers/review.md",
+          ]
+          missing += [suffix for suffix in suffixes if not any(name.endswith(suffix) for name in names)]
+          if missing:
+              raise SystemExit(f"wheel is missing runtime resources: {missing}")
+
+      - name: Python compile check
+        run: python -m compileall -q core mcp-server tests
+
+      - name: Runtime unit tests
+        run: python -m unittest discover -s core/runtime/tests -v
+
+      - name: Tools unit tests
+        run: python -m unittest discover -s core/tools/tests -v
+
+      - name: Installer tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate JSON and JSON Schemas
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          from jsonschema.validators import validator_for
+          for path in Path("core").rglob("*.json"):
+              document = json.loads(path.read_text(encoding="utf-8-sig"))
+              if path.name.endswith(".schema.json"):
+                  validator_for(document).check_schema(document)
+
+      - name: Validate YAML
+        shell: python
+        run: |
+          from pathlib import Path
+          import yaml
+          for pattern in ("*.yaml", "*.yml"):
+              for path in Path("core").rglob(pattern):
+                  yaml.safe_load(path.read_text(encoding="utf-8-sig"))
+
+      - name: MCP smoke test
+        run: python mcp-server/mcu_server.py --test .
+
+      - name: Bash syntax and installer sandbox
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bash -n install.sh
+          sandbox="$(mktemp -d)"
+          mkdir -p "$sandbox/product"
+          ./install.sh --agent all --project "$sandbox/product"
+          test "$(cat "$sandbox/product/.mcu-agent/VERSION")" = "0.8.0"
+          rm -rf "$sandbox"
+
+      - name: PowerShell parser and installer sandbox
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path .\install.ps1), [ref]$tokens, [ref]$errors
+          )
+          if ($errors.Count -ne 0) { $errors | Format-List | Out-String | Write-Error }
+          $sandbox = Join-Path $env:RUNNER_TEMP "mcu-installer-$([guid]::NewGuid().ToString('N'))"
+          $project = Join-Path $sandbox "product"
+          New-Item -ItemType Directory -Path $project -Force | Out-Null
+          Set-Content -LiteralPath (Join-Path $project "AGENTS.md") -Value "user rule"
+          .\install.ps1 -Agent all -Project $project
+          if ((Get-Content (Join-Path $project ".mcu-agent\VERSION") -Raw).Trim() -ne "0.8.0") { throw "wrong installed version" }
+          if ((Get-Content (Join-Path $project "AGENTS.md") -Raw) -notmatch "user rule") { throw "AGENTS.md user content was lost" }
+          Remove-Item -LiteralPath $sandbox -Recurse -Force

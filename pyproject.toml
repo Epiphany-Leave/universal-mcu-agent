@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "universal-mcu-agent"
+version = "0.8.0"
+description = "Agent-independent MCU engineering runtime and tooling"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Epiphanye", email = "452760553@qq.com" }]
+dependencies = [
+  "PyYAML>=6.0,<7",
+  "jsonschema>=4.18,<5",
+]
+
+[project.scripts]
+mcu-agent = "runtime.cli:main"
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.0,<2"]
+pdf = ["PyMuPDF>=1.23,<2"]
+test = [
+  "pytest>=8,<9",
+]
+dev = [
+  "build>=1.2,<2",
+  "pytest>=8,<9",
+  "ruff>=0.6,<1",
+]
+all = [
+  "mcp>=1.0,<2",
+  "PyMuPDF>=1.23,<2",
+]
+
+[tool.setuptools.packages.find]
+where = ["core"]
+include = ["runtime*", "tools*", "schemas", "registry", "workflows"]
+exclude = ["runtime.tests*", "tools.tests*"]
+
+[tool.setuptools.package-data]
+schemas = ["*.json"]
+registry = ["*.yaml"]
+workflows = ["*.md"]
+
+[tool.setuptools.data-files]
+"share/universal-mcu-agent/pi-skill" = [
+  "adapters/pi/skills/mcu-agent/SKILL.md",
+]
+"share/universal-mcu-agent/pi-skill/references/handlers" = [
+  "adapters/pi/skills/mcu-agent/references/handlers/project-setup.md",
+  "adapters/pi/skills/mcu-agent/references/handlers/evidence.md",
+  "adapters/pi/skills/mcu-agent/references/handlers/firmware.md",
+  "adapters/pi/skills/mcu-agent/references/handlers/build.md",
+  "adapters/pi/skills/mcu-agent/references/handlers/review.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "core/runtime/tests", "core/tools/tests"]

@@ -5,7 +5,7 @@ platforms:
     project_layout: "software/<project-name>"
     component_contract: true
   stm32:
-    adapter: pending
+    adapter: runtime.platforms.stm32.Stm32Adapter
     component_contract: false
   ch592:
     adapter: pending

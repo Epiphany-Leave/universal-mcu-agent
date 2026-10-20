@@ -22,6 +22,7 @@ from runtime.transition_engine import TransitionEngine, TransitionError
 
 
 UNKNOWN_LCD = [{
+    "schema_version": "2.0",
     "id": "lcd.display",
     "state": "UNKNOWN",
     "facts": {"panel.identity": {"state": "UNKNOWN", "value": None, "evidence_ids": []}},
@@ -157,15 +158,18 @@ class RuntimeConformanceTests(unittest.TestCase):
 
     def test_approved_ear_is_task_scoped_and_never_unlocks_production(self):
         capabilities = [{
+            "schema_version": "2.0",
             "id": "lcd.display",
             "state": "UNKNOWN",
             "facts": {"panel.identity": {"state": "ASSUMED", "value": "mock-panel", "evidence_ids": [], "ear_id": "EAR-LCD-1"}},
         }]
         assumptions = [{
-            "id": "EAR-LCD-1",
-            "state": "APPROVED",
-            "task_ids": ["lcd_binding"],
-            "expires_at": "2099-01-01T00:00:00Z",
+            "schema_version": "2.0", "id": "EAR-LCD-1", "mode": "prototype",
+            "state": "APPROVED", "task_ids": ["lcd_binding"], "scope": "lcd.display",
+            "assumption": "mock panel for prototype", "risks": ["not physical hardware"],
+            "validation_method": "replace with target test", "owner": "test",
+            "expires_at": "2099-01-01T00:00:00Z", "rollback": "remove mock binding",
+            "approved_by": "owner",
         }]
         prototype = RuntimeEngine().plan("创建UI", mode="prototype", capabilities=capabilities, assumptions=assumptions)
         prototype_tasks = {task["id"]: task["state"] for task in prototype["work_packages"][0]["tasks"]}
@@ -235,7 +239,7 @@ class RuntimeConformanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             paths = create_project_layout(root, "Pet Robot")
-            self.assertEqual(root / "software" / "pet-robot", paths["project_root"])
+            self.assertEqual(root.resolve() / "software" / "pet-robot", paths["project_root"])
             self.assertTrue((root / "hardware").is_dir())
             self.assertTrue((root / "software" / "pet-robot" / "components").is_dir())
             self.assertFalse((root / "firmware").exists())
@@ -311,3 +315,92 @@ class RuntimeConformanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BuildVerifierTests(unittest.TestCase):
+    def test_build_verifier_reports_failure_without_skipping(self):
+        from runtime.verifier import BuildVerifier
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text("toolchain:\n  build_command: 'false'\n", encoding="utf-8")
+            rejected = BuildVerifier(config_path=config).verify({"project_root": tmp})
+            self.assertFalse(rejected["skipped"])
+            self.assertFalse(rejected["passed"])
+            self.assertFalse(rejected["audit"]["allowed"])
+            verdict = BuildVerifier(config_path=config, allow_shell_command=True).verify({"project_root": tmp})
+            self.assertFalse(verdict["skipped"])
+            self.assertFalse(verdict["passed"])
+            self.assertEqual(verdict["exit_code"], 1)
+
+    def test_build_verifier_skips_when_no_command_configured(self):
+        from runtime.verifier import BuildVerifier
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.yaml"
+            config.write_text("toolchain:\n  ide: esp-idf\n", encoding="utf-8")
+            verdict = BuildVerifier(config_path=config).verify({"project_root": tmp})
+            self.assertTrue(verdict["skipped"])
+
+    def test_build_verifier_captures_error_lines(self):
+        from runtime.verifier import BuildVerifier
+        errors = BuildVerifier._errors("a:1:1: error: boom\nb:2:2: warning: meh\nc:3:3: fatal error: end")
+        self.assertEqual(len(errors), 2)
+        self.assertIn("boom", errors[0])
+
+
+class Stm32AdapterTests(unittest.TestCase):
+    IOC_SAMPLE = """#MicroXplorer Configuration settings - do not modify
+Mcu.CPN=STM32G431CBU6
+Mcu.Pin0=PA8
+Mcu.Pin1=PA9
+Mcu.Pin2=PB6
+PA8.Signal=I2C1_SCL
+PA9.Signal=I2C1_SDA
+PB6.Signal=USART1_TX
+"""
+
+    def test_ioc_extract_facts_maps_pins_to_capabilities(self):
+        from runtime.platforms.stm32 import extract_facts, parse_ioc
+        with tempfile.TemporaryDirectory() as tmp:
+            ioc = Path(tmp) / "demo.ioc"
+            ioc.write_text(self.IOC_SAMPLE, encoding="utf-8")
+            parsed = parse_ioc(ioc)
+            self.assertEqual(parsed["mcu"], "STM32G431CBU6")
+            result = extract_facts(ioc)
+            caps = {c["id"]: c for c in result["capabilities"]}
+            self.assertIn("board.i2c1", caps)
+            self.assertEqual(caps["board.i2c1"]["facts"]["scl_pin"]["value"], "PA8")
+            self.assertEqual(caps["board.i2c1"]["facts"]["sda_pin"]["value"], "PA9")
+            self.assertIn("board.uart1", caps)
+            self.assertEqual(caps["board.uart1"]["facts"]["tx_pin"]["value"], "PB6")
+
+    def test_ioc_facts_unblock_i2c_binding_task(self):
+        from runtime.capability_gate import CapabilityGate
+        from runtime.platforms.stm32 import extract_facts
+        with tempfile.TemporaryDirectory() as tmp:
+            ioc = Path(tmp) / "demo.ioc"
+            ioc.write_text(self.IOC_SAMPLE, encoding="utf-8")
+            caps = extract_facts(ioc)["capabilities"]
+            task = {
+                "id": "board_binding", "title": "bind", "state": "READY",
+                "requirements": [
+                    {"capability": "board.i2c1", "facts": ["sda_pin", "scl_pin"],
+                     "gate": "REQUIRED", "on_missing": "BLOCKED_HARDWARE"}
+                ],
+                "debt_ids": [], "verification_tier": "target", "outputs": [],
+                "handler": "firmware-development", "allowed_paths": ["Core"], "input_roles": [],
+            }
+            package = {"schema_version": "2.0", "mode": "production", "tasks": [task]}
+            gated = CapabilityGate().evaluate(package, caps, [])["tasks"][0]
+            self.assertEqual(gated["state"], "READY")
+            self.assertNotIn("blockers", gated)
+
+    def test_stm32_adapter_detect_and_validate(self):
+        from runtime.platforms.stm32 import Stm32Adapter
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "demo.ioc").write_text(self.IOC_SAMPLE, encoding="utf-8")
+            adapter = Stm32Adapter()
+            detected = adapter.detect(Path(tmp))
+            self.assertEqual(detected["platform"], "stm32")
+            validated = adapter.validate(Path(tmp))
+            self.assertEqual(validated["status"], "PASS")
+            self.assertEqual(validated["mcu"], "STM32G431CBU6")
