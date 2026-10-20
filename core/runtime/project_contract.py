@@ -145,19 +145,20 @@ class ProjectContractManager:
         project_id = re.sub(r"[^a-z0-9._-]+", "-", normalized_name.lower().replace("_", "-")).strip("-._")
         if not project_id:
             raise ProjectContractError("project name must produce a stable project_id")
+        layout = {
+            "hardware": self._layout_relative("hardware", paths["hardware_root"]),
+            "software": self._layout_relative("software", paths["software_root"]),
+            "project": self._layout_relative("project", paths["project_root"]),
+            "main": self._layout_relative("main", paths["main_root"]),
+            "components": self._layout_relative("components", paths["components_root"]),
+        }
         now = _now()
         contract = {
             "schema_version": "1.0",
             "project_id": project_id,
             "project_name": normalized_name,
             "revision": 1,
-            "layout": {
-                "hardware": paths["hardware_root"].relative_to(root).as_posix(),
-                "software": paths["software_root"].relative_to(root).as_posix(),
-                "project": paths["project_root"].relative_to(root).as_posix(),
-                "main": paths["main_root"].relative_to(root).as_posix(),
-                "components": paths["components_root"].relative_to(root).as_posix(),
-            },
+            "layout": layout,
             "platform": {"family": platform or None, "chip": chip or None},
             "protected_paths": list(DEFAULT_PROTECTED_PATHS),
             "gates": {"implementation_required_roles": list(dict.fromkeys(implementation_required_roles))},
@@ -350,6 +351,42 @@ class ProjectContractManager:
             "project_root": project_root, "missing_artifact_roles": sorted(set(missing_roles)),
             "errors": errors, "evaluated_at": _now(),
         }
+
+    def _layout_relative(self, key: str, value: Path) -> str:
+        """Canonical posix path of ``value`` below the product root.
+
+        Matches the caller-supplied prefix against the resolved product root via
+        ``samefile`` so Windows 8.3 short names (TEMP) do not break containment;
+        then rejects symlink/junction components and paths escaping the root,
+        mirroring ``_resolved_layout`` validation for stored contracts.
+        """
+        path = Path(value)
+        if not path.is_absolute():
+            path = self.product_root / path
+        components: tuple[str, ...] | None = None
+        for index in range(1, len(path.parts) + 1):
+            prefix = Path(*path.parts[:index])
+            try:
+                if prefix.samefile(self.product_root):
+                    components = path.parts[index:]
+                    break
+            except OSError:
+                continue
+        if not components:
+            raise ProjectContractError(f"layout.{key} must be a path inside the product root: {value}")
+        candidate = self.product_root
+        for component in components:
+            candidate = candidate / component
+            if _is_link_or_reparse(candidate):
+                raise ProjectContractError(
+                    f"layout.{key} contains a symlink/junction component: {'/'.join(components)}"
+                )
+        relative = "/".join(components)
+        try:
+            (self.product_root / relative).resolve().relative_to(self.product_root)
+        except ValueError as exc:
+            raise ProjectContractError(f"layout.{key} escapes product root: {value}") from exc
+        return relative
 
     def _validate_control_paths(self) -> None:
         """Keep tracked governance files at their canonical lexical location."""
