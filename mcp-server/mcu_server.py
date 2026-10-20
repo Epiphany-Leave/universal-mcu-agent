@@ -575,6 +575,13 @@ def list_tools() -> str:
 # ── 启动 ─────────────────────────────────────────────────────
 
 def main():
+    # Tool descriptions and MCP JSON contain non-ASCII text; Windows consoles
+    # default to legacy codepages (cp1252) that cannot encode them.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
     if len(sys.argv) > 1 and sys.argv[1] == "--test":
         # 测试模式
         project = sys.argv[2] if len(sys.argv) > 2 else "."

@@ -92,6 +92,13 @@ def _claim_credentials(service, work_package_id, task_id, *, claim_id, session_i
 
 
 def main() -> int:
+    # JSON results may contain non-ASCII text; Windows consoles default to
+    # legacy codepages (cp1252) that cannot encode them.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     plan = subparsers.add_parser("plan", help="classify intent and create a gated work package")
